@@ -15,12 +15,13 @@
  */
 
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/picked_file.dart';
+import 'package:proxypin/utils/io.dart';
 
-import 'package:code_forge/code_forge.dart';
 import 'package:proxypin/ui/component/multi_window_compat.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:proxypin/ui/component/code_editor/code_forge_compat.dart';
 import 'package:flutter/services.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
 import 'package:re_highlight/styles/atom-one-light.dart';
@@ -117,11 +118,11 @@ class _XmlViewerPageState extends State<XmlViewerPage> {
     String? path;
     try {
       final picked = await FilePicker.pickFile(type: FileType.any);
-      path = picked?.path;
+      path = await PickedFiles.readablePath(picked);
     } catch (_) {
       // 某些平台（e.g. Linux）custom + extensions 可能抛错，回退到任意类型
       final picked = await FilePicker.pickFile();
-      path = picked?.path;
+      path = await PickedFiles.readablePath(picked);
     }
 
     if (path == null) return;

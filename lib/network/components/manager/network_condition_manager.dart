@@ -9,11 +9,11 @@
  */
 
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:proxypin/utils/change_notifier.dart';
+import 'package:proxypin/storage/path.dart';
 import 'package:proxypin/network/util/url_pattern.dart';
 
 /// 弱网模拟配置管理
@@ -51,8 +51,14 @@ class NetworkConditionManager extends ChangeNotifier {
     return _instance!;
   }
 
+  /// 配置文件被外部修改后重新加载(如 Web 端编辑)
+  Future<void> reload() async {
+    await _load();
+    notifyListeners();
+  }
+
   static Future<File> _configFile() async {
-    var directory = await getApplicationSupportDirectory().then((it) => it.path);
+    var directory = await Paths.homePath();
     var file = File('$directory${Platform.pathSeparator}network_condition.json');
     if (!await file.exists()) {
       await file.create(recursive: true);

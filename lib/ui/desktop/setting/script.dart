@@ -15,14 +15,15 @@
  */
 
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/picked_file.dart';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:proxypin/ui/component/multi_window_compat.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:proxypin/ui/component/code_editor/code_forge_compat.dart';
 import 'package:flutter/services.dart';
-import 'package:code_forge/code_forge.dart';
 import 'package:proxypin/l10n/app_localizations.dart';
 import 'package:re_highlight/styles/monokai-sublime.dart';
 import 'package:flutter_toastr/flutter_toastr.dart';
@@ -171,7 +172,7 @@ class _ScriptWidgetState extends State<ScriptWidget> {
   //导入js
   Future<void> import() async {
     final file = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: ['json']);
-    final path = file?.path;
+    final path = await PickedFiles.readablePath(file);
 
     if (path == null) {
       return;

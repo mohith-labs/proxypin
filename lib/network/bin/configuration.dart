@@ -15,7 +15,7 @@
  */
 
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:proxypin/network/channel/host_port.dart';
 import 'package:proxypin/network/util/file_read.dart';

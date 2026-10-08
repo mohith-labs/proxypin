@@ -1,14 +1,6 @@
-import 'dart:ui';
-
-import 'package:proxypin/ui/configuration.dart';
+import 'localizations_server.dart' if (dart.library.ui) 'localizations_flutter.dart' as impl;
 
 /// @author wanghongen
 class Localizations {
-  static bool get isZH {
-    if (AppConfiguration.current?.language != null) {
-      return AppConfiguration.current?.language!.languageCode == 'zh';
-    }
-
-    return PlatformDispatcher.instance.locale.languageCode == 'zh';
-  }
+  static bool get isZH => impl.isZH;
 }

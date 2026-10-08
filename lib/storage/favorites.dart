@@ -15,7 +15,7 @@
  */
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:proxypin/network/http/http.dart';
 import 'package:proxypin/network/http/websocket.dart';
@@ -55,6 +55,13 @@ class FavoriteStorage {
       }
     }
     return list!;
+  }
+
+  /// favorites.json changed elsewhere (another web UI tab): read it again and refresh the list.
+  static Future<void> reload() async {
+    list = null;
+    await favorites;
+    addNotifier?.call();
   }
 
   /// 添加收藏

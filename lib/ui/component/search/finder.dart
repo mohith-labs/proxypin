@@ -1,7 +1,7 @@
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
-import 'package:code_forge/code_forge.dart';
 import 'package:flutter/material.dart';
+import 'package:proxypin/ui/component/code_editor/code_forge_compat.dart';
 import 'package:flutter/services.dart';
 
 const EdgeInsetsGeometry _kFindMargin = EdgeInsets.only(right: 10);

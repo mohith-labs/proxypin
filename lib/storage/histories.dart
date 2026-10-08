@@ -17,7 +17,6 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:date_format/date_format.dart';
 import 'package:proxypin/network/bin/configuration.dart';
@@ -25,10 +24,9 @@ import 'package:proxypin/network/http/http.dart';
 import 'package:proxypin/network/util/logger.dart';
 import 'package:proxypin/storage/path.dart';
 import 'package:proxypin/utils/files.dart';
+import 'package:proxypin/utils/io.dart';
 import 'package:proxypin/utils/har.dart';
 import 'package:proxypin/utils/listenable_list.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 ///历史存储
 ///@Author WangHongEn
@@ -70,8 +68,7 @@ class HistoryStorage {
   }
 
   static Future<String> _homePath() async {
-    final home = await getApplicationSupportDirectory();
-    return '${home.path}${Platform.pathSeparator}history';
+    return '${await Paths.homePath()}${Platform.pathSeparator}history';
   }
 
   /// 获取历史记录
@@ -123,6 +120,20 @@ class HistoryStorage {
 
   Future<void> refresh() async {
     await _storageFile.writeAsString(jsonEncode(_histories.source));
+  }
+
+  /// histories.json was changed by someone else (web UI <-> server): read it again.
+  Future<void> reload() async {
+    _histories.clear();
+    await _init();
+  }
+
+  /// The entry recorded into [path], if it is still listed.
+  HistoryItem? findByPath(String path) {
+    for (final item in _histories.source) {
+      if (item.path == path) return item;
+    }
+    return null;
   }
 
   ///删除
@@ -204,9 +215,8 @@ class HistoryStorage {
   }
 
   //添加历史
-  Future<HistoryItem> addHarFile(XFile file) async {
-    var readAsBytes = await file.readAsString();
-    var json = jsonDecode(readAsBytes);
+  Future<HistoryItem> addHarFile(String harContent) async {
+    var json = jsonDecode(harContent);
     var log = json['log'];
     String name = formatDate(DateTime.now(), [mm, '-', d, ' ', HH, ':', nn, ':', ss]);
     List? pages = log['pages'] as List?;
@@ -243,8 +253,11 @@ class HistoryTask extends ListenerListEvent<HttpRequest> {
     }
   }
 
+  /// Replaces the local recorder (web UI: the ProxyPin server records history).
+  static HistoryTask Function(Configuration configuration, ListenableList<HttpRequest> sourceList)? factory;
+
   static HistoryTask ensureInstance(Configuration configuration, ListenableList<HttpRequest> sourceList) {
-    return _instance ??= HistoryTask(configuration, sourceList);
+    return _instance ??= factory?.call(configuration, sourceList) ?? HistoryTask(configuration, sourceList);
   }
 
   //清理历史数据
@@ -342,7 +355,23 @@ class HistoryTask extends ListenerListEvent<HttpRequest> {
     history!.fileSize = await open!.length();
     history!.requests = null;
     var historyStorage = await HistoryStorage.instance;
-    historyStorage.updateHistory(historyStorage.getIndex(history!), history!);
+    var index = historyStorage.getIndex(history!);
+    if (index < 0) {
+      // histories.json was reloaded: follow the entry for our file, or stop if it was deleted
+      final current = historyStorage.findByPath(history!.path);
+      if (current == null) {
+        final source = sourceList;
+        cancelTask();
+        if (configuration.historyCacheTime != 0) source.addListener(this);
+        return;
+      }
+      current
+        ..requestLength = history!.requestLength
+        ..fileSize = history!.fileSize;
+      history = current;
+      index = historyStorage.getIndex(current);
+    }
+    historyStorage.updateHistory(index, history!);
   }
 }
 

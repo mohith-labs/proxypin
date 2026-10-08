@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import 'dart:io';
+import 'package:proxypin/utils/picked_file.dart';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:proxypin/ui/component/multi_window_compat.dart';
 import 'package:file_picker/file_picker.dart';
@@ -85,9 +86,10 @@ class _CertHashPageState extends State<CertHashPage> {
                 onPressed: () async {
                   final picked = await FilePicker.pickFile(
                       type: FileType.custom, allowedExtensions: ['crt', 'pem', 'cer', 'der']);
-                  if (picked == null) return;
+                  final path = await PickedFiles.readablePath(picked);
+                  if (path == null) return;
 
-                  File file = File(picked.path!);
+                  File file = File(path);
                   var bytes = await file.readAsBytes();
                   input.text = tryDerFormat(bytes) ?? String.fromCharCodes(bytes);
                   getSubjectName();

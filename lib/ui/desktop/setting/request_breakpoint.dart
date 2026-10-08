@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/picked_file.dart';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:proxypin/ui/component/multi_window_compat.dart';
 import 'package:file_picker/file_picker.dart';
@@ -49,7 +50,7 @@ class _RequestBreakpointPageState extends State<RequestBreakpointPage> {
 
   Future<void> _import() async {
     final file = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: ['json']);
-    final path = file?.path;
+    final path = await PickedFiles.readablePath(file);
     if (path == null) return;
     File filePath = File(path);
     try {

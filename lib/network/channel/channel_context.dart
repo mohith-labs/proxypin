@@ -6,6 +6,7 @@ import 'package:proxypin/network/http/codec.dart';
 import 'package:proxypin/network/http/h2/frame.dart';
 import 'package:proxypin/network/http/h2/setting.dart';
 import 'package:proxypin/network/http/h2/request_queue.dart';
+import 'package:proxypin/network/handle/relay_handle.dart';
 import 'package:proxypin/network/http/http.dart';
 import 'package:proxypin/network/util/attribute_keys.dart';
 import 'package:proxypin/network/util/process_info.dart';
@@ -57,6 +58,13 @@ class ChannelContext {
   }
 
   EventListener? listener;
+
+  /// Builds the handler that raw-relays bytes from [from] to [to] (large/unparseable bodies). Defaults to a plain
+  /// [RelayHandler]; the reverse proxy guards the client side so a relayed connection never gets pinned to one
+  /// upstream for later requests.
+  ChannelHandler Function(Channel from, Channel to)? relayHandlerFactory;
+
+  ChannelHandler relayHandler(Channel from, Channel to) => relayHandlerFactory?.call(from, to) ?? RelayHandler(to);
 
   //http2 stream
   final Map<int, Pair<HttpRequest?, HttpResponse?>> _streams = {};

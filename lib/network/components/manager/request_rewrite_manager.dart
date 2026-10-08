@@ -15,7 +15,7 @@
  */
 
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:proxypin/network/components/manager/rewrite_rule.dart';
 import 'package:proxypin/network/http/http.dart';

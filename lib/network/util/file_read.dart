@@ -1,57 +1,30 @@
-import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:flutter/services.dart';
-import 'package:proxypin/utils/platform.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:proxypin/utils/io.dart';
+
+import '../../storage/platform/app_dirs_server.dart'
+    if (dart.library.js_interop) '../../storage/platform/app_dirs_web.dart'
+    if (dart.library.ui) '../../storage/platform/app_dirs_flutter.dart' as dirs;
 
 class FileRead {
+  /// Overrides the user home (tests): config then lives in `<userHome>/.proxypin`.
   static String? userHome;
 
+  /// `~/.proxypin` on desktop (config.cnf, request_rewrite.json, request_crypto.json); the data directory on the
+  /// headless server and web UI.
   static Future<File> homeDir() async {
     if (userHome != null) {
       return File("${userHome!}${Platform.pathSeparator}.proxypin");
     }
-    if (Platforms.isDesktop()) {
-      userHome = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-    } else {
-      userHome = (await getApplicationSupportDirectory()).path;
-    }
-
-    var separator = Platform.pathSeparator;
-    return File("${userHome!}$separator.proxypin");
+    return File(await dirs.userConfigDirectory());
   }
 
-  static Future<String> readAsString(String file) async {
-    return rootBundle.loadString(file);
-    // return File(file).readAsString();
-  }
+  /// Bundled asset (e.g. `assets/certs/ca.crt`).
+  static Future<String> readAsString(String file) => dirs.loadAssetString(file);
 
-  static Future<Uint8List> read(String file) async {
-    return rootBundle.load(file).then((bateData) => bateData.buffer.asUint8List());
-    // return File(file).readAsBytes();
-  }
+  /// Bundled asset bytes.
+  static Future<Uint8List> read(String file) => dirs.loadAsset(file);
 
-  static String? _uuid;
-
-  static Future<String> get iosUuid async {
-    if (_uuid == null) {
-      var applicationPath = (await getApplicationSupportDirectory()).path;
-      var uuidPattern = RegExp(r'/Application/([0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})/');
-      var match = uuidPattern.firstMatch(applicationPath);
-
-      _uuid = match?.group(1);
-    }
-    return _uuid!;
-  }
-
-  static Future<Uint8List> readFile(String path) async {
-    if (Platform.isIOS) {
-      var uuid = await iosUuid;
-      //ios替换uuid
-      var uuidPattern = RegExp(r'/Application/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/');
-      path = path.replaceAll(uuidPattern, '/Application/$uuid/');
-    }
-
-    return File(path).readAsBytes();
-  }
+  /// A file the user picked earlier (map-local / rewrite body files).
+  static Future<Uint8List> readFile(String path) => dirs.readUserFile(path);
 }

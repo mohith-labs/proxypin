@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
+import 'package:proxypin/utils/picked_file.dart';
 import 'package:re_highlight/languages/json.dart';
 
-import 'package:code_forge/code_forge.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:proxypin/ui/component/code_editor/code_forge_compat.dart';
 import 'package:flutter/services.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
 import 'package:re_highlight/styles/atom-one-light.dart';
@@ -278,7 +279,7 @@ class RewriteReplaceState extends State<DesktopRewriteReplace> {
       FilledButton(
           onPressed: () async {
             final picked = await FilePicker.pickFile();
-            final path = picked?.path;
+            final path = await PickedFiles.enginePath(picked);
 
             if (path == null) {
               return;

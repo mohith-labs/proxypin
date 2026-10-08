@@ -29,7 +29,6 @@ import 'package:proxypin/network/util/byte_buf.dart';
 import 'package:proxypin/network/util/byte_utils.dart';
 import 'package:proxypin/network/util/logger.dart';
 import 'package:proxypin/network/util/system_proxy.dart';
-import 'package:proxy_manager/proxy_manager.dart';
 
 import '../channel/channel.dart';
 import 'codec.dart';
@@ -151,9 +150,15 @@ class HttpClients {
     return httpResponseHandler.getResponse(timeout).whenComplete(() => channel.close());
   }
 
+  /// Sends requests for the web UI, which has no sockets: the web app routes them through its ProxyPin server.
+  static Future<HttpResponse> Function(HttpRequest request, Duration timeout)? remoteSender;
+
   /// 发送代理请求
   static Future<HttpResponse> proxyRequest(HttpRequest request,
       {ProxyInfo? proxyInfo, Duration timeout = const Duration(seconds: 30)}) async {
+    final remote = remoteSender;
+    if (remote != null) return remote(request, timeout);
+
     if (request.headers.host == null || request.headers.host?.trim().isEmpty == true) {
       try {
         var uri = Uri.parse(request.requestUrl);

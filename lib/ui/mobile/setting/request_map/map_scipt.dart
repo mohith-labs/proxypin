@@ -1,5 +1,5 @@
-import 'package:code_forge/code_forge.dart';
 import 'package:flutter/material.dart';
+import 'package:proxypin/ui/component/code_editor/code_forge_compat.dart';
 import 'package:re_highlight/styles/monokai-sublime.dart';
 import 'package:proxypin/l10n/app_localizations.dart';
 import 'package:re_highlight/languages/javascript.dart';

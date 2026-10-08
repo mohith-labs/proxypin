@@ -472,5 +472,30 @@
   "statusCancelled": "Cancelled",
   "statusPaused": "Paused",
   "pause": "Pause",
-  "resume": "Resume"
+  "resume": "Resume",
+  "reverseProxy": "Reverse Proxy",
+  "reverseProxyEnable": "Enable reverse proxy",
+  "reverseProxyHint": "Point your app at {origin}<path> instead of the real server: matching requests are forwarded to the rule's target and captured (rewrite, scripts and breakpoints apply). /__proxypin/ is reserved for this console.",
+  "reverseProxyPath": "Path",
+  "reverseProxyTarget": "Target",
+  "reverseProxyStripPrefix": "Strip path prefix",
+  "reverseProxyPreserveHost": "Preserve Host header",
+  "reverseProxyRewriteResponse": "Rewrite redirects and cookies",
+  "reverseProxyUrl": "Proxy URL",
+  "reverseProxyExample": "Example",
+  "reverseProxyEmpty": "No rules yet. Add one, e.g. /proxy → https://example.com",
+  "reverseProxyInvalidPath": "Path must start with /",
+  "reverseProxyDuplicatePath": "Another rule already uses this path",
+  "reverseProxyReservedPath": "/__proxypin is reserved for the web console",
+  "reverseProxyInvalidTarget": "Enter an absolute http(s) URL without query, e.g. https://example.com/api",
+  "webConsoleDisconnected": "Disconnected from the ProxyPin server, reconnecting…",
+  "capturePaused": "Capture paused",
+  "webSignOut": "Sign out",
+  "@reverseProxyHint": {
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  }
 }

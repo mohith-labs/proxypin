@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-import 'dart:io';
+import 'package:proxypin/utils/picked_file.dart';
+import 'package:proxypin/utils/io.dart';
 
-import 'package:code_forge/code_forge.dart';
 import 'package:proxypin/ui/component/multi_window_compat.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:proxypin/ui/component/code_editor/code_forge_compat.dart';
 import 'package:flutter/services.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
 import 'package:re_highlight/styles/atom-one-light.dart';
@@ -306,10 +307,10 @@ class _TextDiffPageState extends State<TextDiffPage> {
     String? path;
     try {
       final picked = await FilePicker.pickFile(type: FileType.any);
-      path = picked?.path;
+      path = await PickedFiles.readablePath(picked);
     } catch (_) {
       final picked = await FilePicker.pickFile();
-      path = picked?.path;
+      path = await PickedFiles.readablePath(picked);
     }
 
     if (path == null) return;

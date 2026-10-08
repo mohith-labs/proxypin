@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 void main() {
   NetworkInterface.list(type: InternetAddressType.IPv4).then((interfaces) {

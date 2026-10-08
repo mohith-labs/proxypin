@@ -64,6 +64,7 @@ abstract class HttpMessage {
 
   List<int>? _body;
   String? _bodyString;
+  List<int>? _decodedBody;
 
   String? remoteHost;
   int? remotePort;
@@ -89,7 +90,7 @@ abstract class HttpMessage {
   Map<String, dynamic> toJson();
 
   /// 是否是websocket协议
-  bool get isWebSocket => headers.get("Upgrade") == 'websocket';
+  bool get isWebSocket => headers.get("Upgrade")?.toLowerCase() == 'websocket';
 
   ContentType get contentType => contentTypes.entries
       .firstWhere((element) => headers.contentType.contains(element.key),
@@ -101,6 +102,28 @@ abstract class HttpMessage {
   set body(List<int>? body) {
     _body = body;
     _bodyString = null;
+    _decodedBody = null;
+  }
+
+  /// [body] with its Content-Encoding already removed, when that was done elsewhere: the web UI gets brotli and
+  /// zstd bodies decoded by the server (package:brotli breaks when compiled to JavaScript, and the browser has
+  /// no zstd decoder). Body text accessors prefer it.
+  List<int>? get decodedBody => _decodedBody;
+
+  set decodedBody(List<int>? decoded) {
+    _decodedBody = decoded;
+    _bodyString = null;
+  }
+
+  String _charsetDecode(List<int> bytes, String? charset) {
+    if (charset == 'utf-8' || charset == 'utf8') {
+      try {
+        return utf8.decode(bytes);
+      } catch (_) {
+        return String.fromCharCodes(bytes);
+      }
+    }
+    return String.fromCharCodes(bytes);
   }
 
   ///获取消息体编码
@@ -135,7 +158,9 @@ abstract class HttpMessage {
     try {
       List<int> rawBody = body!;
 
-      if (headers.isGzip) {
+      if (_decodedBody != null) {
+        rawBody = _decodedBody!;
+      } else if (headers.isGzip) {
         rawBody = gzipDecode(body!);
       } else if (headers.contentEncoding == 'br') {
         rawBody = brDecode(body!);
@@ -149,7 +174,7 @@ abstract class HttpMessage {
 
       return String.fromCharCodes(rawBody);
     } catch (e) {
-      return String.fromCharCodes(body!);
+      return String.fromCharCodes(_decodedBody ?? body!);
     }
   }
 
@@ -162,14 +187,15 @@ abstract class HttpMessage {
       return _bodyString!;
     }
 
-    List<int> rawBody = body!;
-    if (headers.contentEncoding == 'zstd') {
-      rawBody = await zstdDecode(body!) ?? [];
-      if (charset == 'utf-8' || charset == 'utf8') {
-        _bodyString = utf8.decode(rawBody);
-      } else {
-        _bodyString = String.fromCharCodes(rawBody);
-      }
+    List<int>? decoded = _decodedBody;
+    final encoding = headers.contentEncoding;
+    if (decoded == null && encoding == 'zstd') {
+      decoded = await zstdDecode(body!) ?? [];
+    } else if (decoded == null && encoding == 'br') {
+      decoded = await brDecodeAsync(body!); // the browser asks the server, see brDecodeAsync
+    }
+    if (decoded != null) {
+      _bodyString = _charsetDecode(decoded, charset);
       return _bodyString!;
     }
 
@@ -345,6 +371,7 @@ class HttpRequest extends HttpMessage {
       'packageSize': packageSize,
       'headers': headers.toJson(),
       'body': body == null ? null : String.fromCharCodes(body!),
+      if (decodedBody != null) 'decodedBody': base64Encode(decodedBody!),
       'requestTime': requestTime.millisecondsSinceEpoch,
       'messages': messages.map((e) => e.toJson()).toList(),
     };
@@ -357,6 +384,7 @@ class HttpRequest extends HttpMessage {
     request.requestId = json['_id'] ?? request.requestId;
     request.headers.addAll(HttpHeaders.fromJson(json['headers']));
     request.body = json['body']?.toString().codeUnits;
+    if (json['decodedBody'] is String) request.decodedBody = base64Decode(json['decodedBody']);
     if (json['requestTime'] != null) {
       request.requestTime = DateTime.fromMillisecondsSinceEpoch(json['requestTime']);
     }
@@ -416,6 +444,7 @@ class HttpResponse extends HttpMessage {
         protocolVersion: json['protocolVersion'])
       ..headers.addAll(HttpHeaders.fromJson(json['headers']))
       ..body = json['body']?.toString().codeUnits;
+    if (json['decodedBody'] is String) httpResponse.decodedBody = base64Decode(json['decodedBody']);
     if (json['responseTime'] != null) {
       httpResponse.responseTime = DateTime.fromMillisecondsSinceEpoch(json['responseTime']);
     }
@@ -443,6 +472,7 @@ class HttpResponse extends HttpMessage {
       },
       'headers': headers.toJson(),
       'body': body == null ? null : String.fromCharCodes(body!),
+      if (decodedBody != null) 'decodedBody': base64Encode(decodedBody!),
       'responseTime': responseTime.millisecondsSinceEpoch,
       'messages': messages.map((e) => e.toJson()).toList(),
     };

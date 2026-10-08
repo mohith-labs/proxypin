@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import 'package:proxypin/utils/picked_file.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -170,7 +171,7 @@ class MapLocaleState extends State<DesktopMapLocal> {
           FilledButton(
               onPressed: () async {
                 final picked = await FilePicker.pickFile();
-                final path = picked?.path;
+                final path = await PickedFiles.enginePath(picked);
 
                 if (path == null) {
                   return;

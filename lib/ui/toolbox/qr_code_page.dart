@@ -15,7 +15,7 @@
  */
 
 import 'dart:async';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 import 'dart:ui' as ui;
 
 import 'package:proxypin/ui/component/multi_window_compat.dart';

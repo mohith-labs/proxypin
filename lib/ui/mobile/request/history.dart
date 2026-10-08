@@ -15,7 +15,7 @@
  */
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:date_format/date_format.dart';
 import 'package:file_picker/file_picker.dart';
@@ -216,7 +216,7 @@ class _MobileHistoryState extends State<MobileHistory> {
     }
 
     try {
-      var historyItem = await storage.addHarFile(file.xFile);
+      var historyItem = await storage.addHarFile(await file.xFile.readAsString());
       setState(() {
         toRequestsView(historyItem, storage);
         FlutterToastr.show(localizations.importSuccess, context);

@@ -16,7 +16,7 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:menu_base/menu_base.dart';
 import 'package:tray_manager/tray_manager.dart';

@@ -15,7 +15,7 @@
  */
 
 import 'dart:collection';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 import 'dart:convert';
 
 import 'package:date_format/date_format.dart';

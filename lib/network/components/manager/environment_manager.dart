@@ -9,10 +9,10 @@
  */
 
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
+import 'package:proxypin/utils/change_notifier.dart';
 import 'package:proxypin/network/util/logger.dart';
 import 'package:proxypin/network/util/random.dart';
 import 'package:proxypin/storage/path.dart';
@@ -110,6 +110,12 @@ class EnvironmentManager extends ChangeNotifier {
   /// 主动预热,避免首个请求命中时才 IO
   static Future<void> preload() async {
     await instance;
+  }
+
+  /// 配置文件被外部修改后重新加载(如 Web 端编辑)
+  Future<void> reload() async {
+    await _load();
+    notifyListeners();
   }
 
   EnvironmentManager._();

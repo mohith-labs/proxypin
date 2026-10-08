@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 import 'dart:collection';
 import 'dart:math' as math;
 

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:proxypin/l10n/app_localizations.dart';
 import 'package:proxypin/network/util/logger.dart';
-import 'package:proxypin/ui/app_update/desktop_update_dialog.dart';
+import 'package:proxypin/ui/app_update/desktop_update_dialog.dart'
+    if (dart.library.js_interop) 'package:proxypin/ui/app_update/desktop_update_dialog_web.dart';
 import 'package:proxypin/ui/app_update/remote_version_entity.dart';
 import 'package:proxypin/utils/navigator.dart';
 import 'package:proxypin/utils/platform.dart';

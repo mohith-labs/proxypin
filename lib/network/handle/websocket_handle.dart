@@ -46,5 +46,12 @@ class WebSocketChannelHandler extends ChannelHandler<Uint8List> {
     }
   }
 
+  /// Either side going away ends the tunnel: close the peer too, so the other end sees the disconnect right
+  /// away instead of only after its own ping/close timeout.
+  @override
+  void channelInactive(ChannelContext channelContext, Channel channel) {
+    proxyChannel.close();
+  }
+
   static final Uint8List _empty = Uint8List(0);
 }

@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>sio test</title></head>
+<body>
+<pre id="out">running…</pre>
+<script src="socket.io/socket.io.js"></script>
+<script>
+  // Served behind the reverse proxy at <prefix>/ — every URL is derived from the page location.
+  const base = location.pathname.replace(/\/[^/]*$/, '');
+  const results = { base, steps: [] };
+  window.results = results;
+  const log = (k, v) => { results[k] = v; results.steps.push(k); document.getElementById('out').textContent = JSON.stringify(results, null, 1); };
+
+  const socket = io({ path: base + '/socket.io', query: { tag: 'browser-' + Date.now() } });
+  socket.on('welcome', (w) => log('welcome', w));
+  socket.io.engine.on('upgrade', (t) => log('upgradedTo', t.name));
+  socket.on('connect', () => {
+    log('firstTransport', socket.io.engine.transport.name);
+    socket.emit('echo', 'hello-from-browser', (r) => log('echo', r));
+    socket.emit('binary', new Uint8Array([1, 2, 3, 250]), (r) => log('binary', Array.from(new Uint8Array(r))));
+    socket.emit('join', 'tick', () => {});
+    let ticks = 0;
+    socket.on('tick', () => { if (++ticks === 2) log('ticks', ticks); });
+    setTimeout(() => socket.emit('echo', 'after-upgrade', (r) => log('echoAfterUpgrade', r)), 2500);
+  });
+  socket.on('connect_error', (e) => log('connectError', String(e)));
+
+  const admin = io('/admin', { path: base + '/socket.io' });
+  admin.on('admin-welcome', (m) => log('admin', m));
+
+  const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + base + '/raw?tag=browser';
+  const ws = new WebSocket(wsUrl, ['chat.v1', 'chat.v2']);
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => { log('rawProtocol', ws.protocol); ws.send('hi'); ws.send('cmd:frag'); };
+  ws.onmessage = (e) => {
+    if (e.data === 'echo:hi') log('rawEcho', e.data);
+    else if (e.data === 'part1-part2-part3') { log('rawFragmented', e.data); ws.send('cmd:close:4001'); }
+  };
+  ws.onclose = (e) => log('rawClose', { code: e.code, reason: e.reason });
+  ws.onerror = () => log('rawError', true);
+
+  const es = new EventSource(base + '/sse');
+  let sse = 0;
+  es.onmessage = (e) => { sse++; if (sse === 3) log('sse', e.data); };
+  es.onerror = () => { if (sse >= 3) { log('sseEnded', true); es.close(); } };
+</script>
+</body>
+</html>

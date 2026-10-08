@@ -1,0 +1,18 @@
+# Only what the image build needs: lib/, bin/, server/, assets/, web/, pubspec + l10n config.
+.git
+.github
+.dart_tool
+.idea
+.vscode
+.fvm
+build
+android
+ios
+macos
+linux
+windows
+test
+docs
+tool
+**/*.iml
+**/.DS_Store

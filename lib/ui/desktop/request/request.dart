@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:date_format/date_format.dart';
 import 'package:proxypin/ui/component/multi_window_compat.dart';

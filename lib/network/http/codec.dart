@@ -141,7 +141,12 @@ abstract class HttpCodec<T extends HttpMessage> implements Codec<T, T> {
         bool isConnectResponse = pendingConnectResponse ||
             (this is HttpResponseCodec && channelContext.currentRequest?.method == HttpMethod.connect);
 
-        bool resolveBody = channelContext.currentRequest?.method != HttpMethod.head && !isConnectResponse;
+        // 1xx responses (e.g. 101 Switching Protocols) have no body: bytes after the headers already belong to
+        // the next protocol (WebSocket frames) and must stay in the buffer, not be swallowed as a body.
+        final message = result.data;
+        bool informational = message is HttpResponse && message.status.code < 200;
+        bool resolveBody =
+            channelContext.currentRequest?.method != HttpMethod.head && !isConnectResponse && !informational;
         var bodyResult = resolveBody ? bodyReader!.readBody(data.readAvailableBytes()) : null;
         if (!resolveBody || bodyResult?.isDone == true) {
           _state = State.done;

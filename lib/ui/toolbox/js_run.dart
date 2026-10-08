@@ -1,19 +1,15 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:proxypin/ui/component/code_editor/code_forge_compat.dart';
 import 'package:flutter/services.dart';
-import 'package:code_forge/code_forge.dart';
 import 'package:proxypin/l10n/app_localizations.dart';
 import 'package:re_highlight/styles/monokai-sublime.dart';
-import 'package:flutter_js/flutter_js.dart';
 import 'package:flutter_toastr/flutter_toastr.dart';
 import 'package:proxypin/ui/component/search/finder.dart';
 import 'package:proxypin/utils/platform.dart';
 import 'package:re_highlight/languages/javascript.dart';
-import 'package:proxypin/network/components/js/file.dart';
-import 'package:proxypin/network/components/js/md5.dart';
-import 'package:proxypin/network/components/js/xhr.dart';
+
+import 'js_playground_engine.dart';
 
 class JavaScript extends StatefulWidget {
   final String? windowId;
@@ -27,10 +23,7 @@ class JavaScript extends StatefulWidget {
 }
 
 class _JavaScriptState extends State<JavaScript> {
-  //重置环境
-  static bool resetEnvironment = true;
-
-  static JavascriptRuntime? flutterJs;
+  late final JsPlaygroundEngine engine;
 
   late CodeForgeController code;
 
@@ -43,15 +36,7 @@ class _JavaScriptState extends State<JavaScript> {
   @override
   void initState() {
     super.initState();
-    if (resetEnvironment || flutterJs == null) {
-      flutterJs = getJavascriptRuntime(xhr: false);
-    }
-    // register channel callback
-    final channelCallbacks = JavascriptRuntime.channelFunctionsRegistered[flutterJs!.getEngineInstanceId()];
-    channelCallbacks!["ConsoleLog"] = consoleLog;
-    Md5Bridge.registerMd5(flutterJs!);
-    FileBridge.registerFile(flutterJs!);
-    flutterJs?.enableFetch2(enabledProxy: true);
+    engine = JsPlaygroundEngine(consoleLog);
 
     code = CodeForgeController()..text = 'console.log("Hello, World!")';
   }
@@ -60,10 +45,7 @@ class _JavaScriptState extends State<JavaScript> {
   void dispose() {
     code.dispose();
     outputScrollController.dispose();
-    if (resetEnvironment) {
-      flutterJs?.dispose();
-      flutterJs = null;
-    }
+    engine.dispose();
     super.dispose();
   }
 
@@ -73,7 +55,6 @@ class _JavaScriptState extends State<JavaScript> {
     if (level == 'info') level = 'warn';
     setState(() {
       outLines.add(Text(output, style: TextStyle(color: level == 'error' ? Colors.red : Colors.white, fontSize: 13)));
-      print(outLines);
     });
   }
 
@@ -99,12 +80,8 @@ class _JavaScriptState extends State<JavaScript> {
                   ElevatedButton.icon(
                       onPressed: () async {
                         final picked = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: ['js']);
-                        final path = picked?.path;
-
-                        if (path != null) {
-                          File file = File(path);
-                          String content = await file.readAsString();
-                          code.text = content;
+                        if (picked != null) {
+                          code.text = await picked.xFile.readAsString();
                           setState(() {});
                         }
                       },
@@ -116,14 +93,10 @@ class _JavaScriptState extends State<JavaScript> {
                         outLines.clear();
                         //失去焦点
                         FocusScope.of(context).unfocus();
-                        var jsResult = await flutterJs!.evaluateAsync(code.text);
-                        if (jsResult.isPromise || jsResult.rawResult is Future) {
-                          jsResult = await flutterJs!.handlePromise(jsResult);
-                        }
-                        if (jsResult.isError) {
+                        final error = await engine.run(code.text);
+                        if (error != null && mounted) {
                           setState(() {
-                            outLines.add(
-                                Text(jsResult.toString(), style: const TextStyle(color: Colors.red, fontSize: 13)));
+                            outLines.add(Text(error, style: const TextStyle(color: Colors.red, fontSize: 13)));
                           });
                         }
                       },

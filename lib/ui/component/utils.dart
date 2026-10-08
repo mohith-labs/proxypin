@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';

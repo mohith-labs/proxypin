@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:proxypin/native/process_info.dart';
 import 'package:proxypin/network/channel/channel.dart';
 import 'package:proxypin/network/channel/channel_context.dart';
 import 'package:proxypin/network/handle/relay_handle.dart';
@@ -84,8 +83,8 @@ class ChannelDispatcher extends ChannelHandler<Uint8List> {
   /// 转发请求
   void relay(ChannelContext channelContext, Channel clientChannel, Channel remoteChannel) {
     var rawCodec = RawCodec();
-    clientChannel.dispatcher.channelHandle(rawCodec, RelayHandler(remoteChannel));
-    remoteChannel.dispatcher.channelHandle(rawCodec, RelayHandler(clientChannel));
+    clientChannel.dispatcher.channelHandle(rawCodec, channelContext.relayHandler(clientChannel, remoteChannel));
+    remoteChannel.dispatcher.channelHandle(rawCodec, channelContext.relayHandler(remoteChannel, clientChannel));
 
     var body = buffer.bytes;
     buffer.clear();
@@ -111,7 +110,12 @@ class ChannelDispatcher extends ChannelHandler<Uint8List> {
       Channel? remoteChannel = channelContext.getAttribute(channel.id);
 
       //大body 不解析直接转发
-      if (buffer.length > Codec.maxBodyLength && handler is! RelayHandler && handler is! MqttRelayHandler && remoteChannel != null) {
+      // (raw tunnels such as WebSocket/SSE already pass every read through and must keep their handlers)
+      if (buffer.length > Codec.maxBodyLength &&
+          decoder is! RawCodec &&
+          handler is! RelayHandler &&
+          handler is! MqttRelayHandler &&
+          remoteChannel != null) {
         logger.w("[$channel] forward large body");
         relay(channelContext, channel, remoteChannel);
         return;
@@ -182,7 +186,7 @@ class ChannelDispatcher extends ChannelHandler<Uint8List> {
       }
 
       //websocket协议
-      if (data is HttpResponse && data.isWebSocket && remoteChannel != null) {
+      if (data is HttpResponse && data.isWebSocket && data.status.code == 101 && remoteChannel != null) {
         onWebSocketHandle(channelContext, channel, data);
         return;
       }
@@ -224,7 +228,8 @@ class ChannelDispatcher extends ChannelHandler<Uint8List> {
     channelContext.currentRequest = data;
     data.hostAndPort ??= channelContext.host ?? getHostAndPort(data, ssl: channel.isSsl);
     if (data.headers.host != null && data.headers.host?.contains(":") == false) {
-      data.hostAndPort?.host = data.headers.host!;
+      // copy: hostAndPort may be the connection's shared instance (channelContext.host / an earlier request)
+      data.hostAndPort = data.hostAndPort?.copyWith(host: data.headers.host!);
     }
     await _fixAndroidVpnPort(channelContext, channel, data);
     data.processInfo ??= await ProcessInfoUtils.getProcessByPort(channel.remoteSocketAddress, data.remoteDomain()!);
@@ -249,7 +254,7 @@ class ChannelDispatcher extends ChannelHandler<Uint8List> {
       return;
     }
 
-    final vpnRemote = await ProcessInfoPlugin.getRemoteAddressByPort(channel.remoteSocketAddress.port);
+    final vpnRemote = await ProcessInfoUtils.getRemoteAddressByPort(channel.remoteSocketAddress.port);
     if (vpnRemote != null && vpnRemote.port != data.hostAndPort!.port) {
       data.hostAndPort = data.hostAndPort!.copyWith(port: vpnRemote.port);
     }
@@ -281,6 +286,14 @@ class ChannelDispatcher extends ChannelHandler<Uint8List> {
     var rawCodec = RawCodec();
     channel.dispatcher.channelHandle(rawCodec, WebSocketChannelHandler(remoteChannel, data));
     remoteChannel.dispatcher.channelHandle(rawCodec, WebSocketChannelHandler(channel, data.request!));
+
+    // Frames that arrived in the same read as the 101 response (e.g. Engine.IO's open packet) must be relayed
+    // now: the client may be waiting for them, and nothing else would flush the buffer until the next read.
+    if (buffer.isReadable()) {
+      final frames = Uint8List.fromList(buffer.readAvailableBytes());
+      buffer.clear();
+      handler.channelRead(channelContext, channel, frames);
+    }
   }
 
   /// SSE 处理 (text/event-stream)

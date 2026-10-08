@@ -2847,6 +2847,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Resume'**
   String get resume;
+
+  /// No description provided for @reverseProxy.
+  ///
+  /// In en, this message translates to:
+  /// **'Reverse Proxy'**
+  String get reverseProxy;
+
+  /// No description provided for @reverseProxyEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable reverse proxy'**
+  String get reverseProxyEnable;
+
+  /// No description provided for @reverseProxyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Point your app at {origin}<path> instead of the real server: matching requests are forwarded to the rule\'s target and captured (rewrite, scripts and breakpoints apply). /__proxypin/ is reserved for this console.'**
+  String reverseProxyHint(String origin);
+
+  /// No description provided for @reverseProxyPath.
+  ///
+  /// In en, this message translates to:
+  /// **'Path'**
+  String get reverseProxyPath;
+
+  /// No description provided for @reverseProxyTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Target'**
+  String get reverseProxyTarget;
+
+  /// No description provided for @reverseProxyStripPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'Strip path prefix'**
+  String get reverseProxyStripPrefix;
+
+  /// No description provided for @reverseProxyPreserveHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Preserve Host header'**
+  String get reverseProxyPreserveHost;
+
+  /// No description provided for @reverseProxyRewriteResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'Rewrite redirects and cookies'**
+  String get reverseProxyRewriteResponse;
+
+  /// No description provided for @reverseProxyUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy URL'**
+  String get reverseProxyUrl;
+
+  /// No description provided for @reverseProxyExample.
+  ///
+  /// In en, this message translates to:
+  /// **'Example'**
+  String get reverseProxyExample;
+
+  /// No description provided for @reverseProxyEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No rules yet. Add one, e.g. /proxy → https://example.com'**
+  String get reverseProxyEmpty;
+
+  /// No description provided for @reverseProxyInvalidPath.
+  ///
+  /// In en, this message translates to:
+  /// **'Path must start with /'**
+  String get reverseProxyInvalidPath;
+
+  /// No description provided for @reverseProxyDuplicatePath.
+  ///
+  /// In en, this message translates to:
+  /// **'Another rule already uses this path'**
+  String get reverseProxyDuplicatePath;
+
+  /// No description provided for @reverseProxyReservedPath.
+  ///
+  /// In en, this message translates to:
+  /// **'/__proxypin is reserved for the web console'**
+  String get reverseProxyReservedPath;
+
+  /// No description provided for @reverseProxyInvalidTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter an absolute http(s) URL without query, e.g. https://example.com/api'**
+  String get reverseProxyInvalidTarget;
+
+  /// No description provided for @webConsoleDisconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnected from the ProxyPin server, reconnecting…'**
+  String get webConsoleDisconnected;
+
+  /// No description provided for @capturePaused.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture paused'**
+  String get capturePaused;
+
+  /// No description provided for @webSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get webSignOut;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

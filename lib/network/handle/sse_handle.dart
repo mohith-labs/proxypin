@@ -49,4 +49,10 @@ class SseChannelHandler extends ChannelHandler<Uint8List> {
       log.e("sse decode error", error: e, stackTrace: stackTrace);
     }
   }
+
+  /// The server ending the stream (e.g. a connection-delimited response) must reach the client.
+  @override
+  void channelInactive(ChannelContext channelContext, Channel channel) {
+    proxyChannel.close();
+  }
 }

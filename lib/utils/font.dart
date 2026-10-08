@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 class Fonts {
   String thin = "PingFangSC-Thin";
