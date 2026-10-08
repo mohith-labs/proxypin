@@ -14,11 +14,8 @@
  * limitations under the License.
  */
 
-import 'package:code_forge/code_forge/code_area.dart';
-import 'package:code_forge/code_forge/controller.dart';
-import 'package:code_forge/code_forge/find_controller.dart';
-import 'package:code_forge/code_forge/styling.dart';
 import 'package:flutter/material.dart';
+import 'package:proxypin/ui/component/code_editor/code_forge_compat.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
 import 'package:re_highlight/styles/atom-one-light.dart';
 import 'package:flutter_toastr/flutter_toastr.dart';

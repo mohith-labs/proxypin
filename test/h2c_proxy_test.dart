@@ -54,7 +54,7 @@ class _Capture extends EventListener {
   final responses = <HttpResponse>[];
 
   @override
-  void onRequest(Channel channel, HttpRequest request) => requests.add(request);
+  void onRequest(Channel? channel, HttpRequest request) => requests.add(request);
 
   @override
   void onResponse(ChannelContext channelContext, HttpResponse response) => responses.add(response);

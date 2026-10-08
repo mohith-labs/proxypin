@@ -1,145 +1,33 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
-
-import 'package:flutter_js/flutter_js.dart';
-import 'package:proxypin/network/components/js/xhr.dart';
 
 import '../../http/http.dart';
 import '../../http/http.dart' as http;
 import '../../http/http_headers.dart';
 import '../../util/lang.dart';
-import '../../util/logger.dart';
 import '../../util/uri.dart';
-import 'file.dart';
-import 'md5.dart';
+import 'script_runtime_server.dart'
+    if (dart.library.js_interop) 'script_runtime_web.dart'
+    if (dart.library.ui) 'script_runtime_flutter.dart' as runtime;
 
-class JavaScriptRuntimePool {
-  final int size;
-  final Function(dynamic args)? consoleLog;
+/// Runs ProxyPin scripts. The desktop/mobile app embeds flutter_js (QuickJS/JavaScriptCore); the headless server
+/// uses a Node.js worker; the web UI asks the server.
+abstract class ScriptRuntime {
+  static int defaultPoolSize = 4;
+  static Duration timeout = const Duration(seconds: 30);
 
-  final List<_PooledJavaScriptRuntime> _runtimes = [];
+  /// [consoleLog] receives `[level, ...args]` for every console call, like flutter_js' ConsoleLog channel.
+  static ScriptRuntime create({int? poolSize, Function(dynamic args)? consoleLog}) =>
+      runtime.createScriptRuntime(poolSize: poolSize ?? defaultPoolSize, consoleLog: consoleLog);
 
-  JavaScriptRuntimePool({required int size, this.consoleLog}) : size = size < 1 ? 1 : size;
+  /// Evaluates [code]; its last expression (often a Promise) is the result, decoded to Dart JSON values.
+  /// Script errors are thrown as [SignalException].
+  Future<dynamic> evaluate(String code);
 
-  Future<T> run<T>(Future<T> Function(JavascriptRuntime flutterJs) action) async {
-    final runtime = _selectRuntime();
-    runtime.pending++;
-    try {
-      final flutterJs = await runtime.flutterJs.onError((error, stackTrace) {
-        _runtimes.remove(runtime);
-        throw error!;
-      });
-      return await JavaScriptEngine.synchronized(flutterJs, () => action(flutterJs));
-    } on TimeoutException catch (e) {
-      _runtimes.remove(runtime);
-      logger.e('JavaScript runtime timed out and was removed from pool: $e');
-      rethrow;
-    } finally {
-      runtime.pending--;
-    }
-  }
-
-  Future<void> dispose() async {
-    final runtimes = List<_PooledJavaScriptRuntime>.of(_runtimes);
-    _runtimes.clear();
-    for (final runtime in runtimes) {
-      (await runtime.flutterJs).dispose();
-    }
-  }
-
-  _PooledJavaScriptRuntime _selectRuntime() {
-    for (final runtime in _runtimes) {
-      if (runtime.pending == 0) {
-        return runtime;
-      }
-    }
-
-    if (_runtimes.length < size) {
-      final runtime = _PooledJavaScriptRuntime(JavaScriptEngine.getJavaScript(consoleLog: consoleLog));
-      _runtimes.add(runtime);
-      return runtime;
-    }
-
-    return _runtimes.reduce((current, next) => current.pending <= next.pending ? current : next);
-  }
-}
-
-class _PooledJavaScriptRuntime {
-  final Future<JavascriptRuntime> flutterJs;
-  int pending = 0;
-
-  _PooledJavaScriptRuntime(this.flutterJs);
+  Future<void> dispose();
 }
 
 class JavaScriptEngine {
-  static final _runtimeLocks = Expando<Future<void>>('javascriptRuntimeLocks');
-
-  static int defaultRuntimePoolSize = 4;
-  static Duration runtimeTimeout = const Duration(seconds: 30);
-
-  static Future<T> synchronized<T>(JavascriptRuntime flutterJs, Future<T> Function() action) async {
-    while (_runtimeLocks[flutterJs] != null) {
-      await _runtimeLocks[flutterJs]!.timeout(runtimeTimeout);
-    }
-
-    final completer = Completer<void>();
-    _runtimeLocks[flutterJs] = completer.future;
-    var completed = false;
-    try {
-      return await action().timeout(runtimeTimeout);
-    } finally {
-      _runtimeLocks[flutterJs] = null;
-      if (!completed) {
-        completed = true;
-        completer.complete();
-      }
-    }
-  }
-
-  static Future<JavascriptRuntime> getJavaScript({Function(dynamic args)? consoleLog}) async {
-    final JavascriptRuntime flutterJs = getJavascriptRuntime(xhr: false);
-
-    // register channel callback
-    if (consoleLog != null) {
-      final channelCallbacks = JavascriptRuntime.channelFunctionsRegistered[flutterJs.getEngineInstanceId()];
-      channelCallbacks!["ConsoleLog"] = consoleLog;
-    }
-    Md5Bridge.registerMd5(flutterJs);
-    FileBridge.registerFile(flutterJs);
-
-    flutterJs.enableFetch2();
-    return flutterJs;
-  }
-
-  /// js结果转换
-  static Future<dynamic> jsResultResolve(JavascriptRuntime flutterJs, JsEvalResult jsResult) async {
-    try {
-      if (jsResult.isPromise || jsResult.rawResult is Future) {
-        jsResult = await flutterJs.handlePromise(jsResult);
-      }
-
-      if (jsResult.isPromise || jsResult.rawResult is Future) {
-        jsResult = await flutterJs.handlePromise(jsResult);
-      }
-    } catch (e) {
-      throw SignalException(jsResult.stringResult);
-    }
-
-    var result = jsResult.rawResult;
-    if (Platform.isMacOS || Platform.isIOS) {
-      result = flutterJs.convertValue(jsResult);
-    }
-    if (result is String) {
-      result = jsonDecode(result);
-    }
-    if (jsResult.isError) {
-      logger.e('jsResultResolve error: ${jsResult.stringResult}');
-      throw SignalException(jsResult.stringResult);
-    }
-    return result;
-  }
-
   //转换js request
   static Future<Map<String, dynamic>> convertJsRequest(HttpRequest request) async {
     var requestUri = request.requestUri;

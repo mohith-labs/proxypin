@@ -15,7 +15,7 @@
  */
 
 import 'dart:async';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:flutter/material.dart';
 import 'package:proxypin/l10n/app_localizations.dart';
@@ -40,6 +40,7 @@ import 'package:proxypin/ui/desktop/request/list.dart';
 import 'package:proxypin/ui/desktop/toolbar/toolbar.dart';
 import 'package:proxypin/ui/desktop/widgets/windows_toolbar.dart';
 import 'package:proxypin/utils/listenable_list.dart';
+import 'package:proxypin/utils/platform.dart';
 
 import '../app_update/app_update_repository.dart';
 import '../component/split_view.dart';
@@ -51,7 +52,10 @@ class DesktopHomePage extends StatefulWidget {
   final Configuration configuration;
   final AppConfiguration appConfiguration;
 
-  const DesktopHomePage(this.configuration, this.appConfiguration, {super.key, required});
+  /// The engine to show; the web UI passes its server-backed one.
+  final ProxyServer? proxyServer;
+
+  const DesktopHomePage(this.configuration, this.appConfiguration, {super.key, this.proxyServer});
 
   @override
   State<DesktopHomePage> createState() => _DesktopHomePagePageState();
@@ -68,13 +72,13 @@ class _DesktopHomePagePageState extends State<DesktopHomePage> implements EventL
   final ValueNotifier<int> _selectIndex = ValueNotifier(0);
   StreamSubscription<HistoryItem>? _remoteHistorySubscription;
 
-  late ProxyServer proxyServer = ProxyServer(widget.configuration);
+  late ProxyServer proxyServer = widget.proxyServer ?? ProxyServer(widget.configuration);
   late NetworkTabController panel;
 
   AppLocalizations get localizations => AppLocalizations.of(context)!;
 
   @override
-  void onRequest(Channel channel, HttpRequest request) {
+  void onRequest(Channel? channel, HttpRequest request) {
     requestListStateKey.currentState!.add(channel, request);
 
     if (request.attributes['quickShare'] == true) {
@@ -95,7 +99,7 @@ class _DesktopHomePagePageState extends State<DesktopHomePage> implements EventL
   }
 
   @override
-  void onMessage(Channel channel, HttpMessage message, WebSocketFrame frame) {
+  void onMessage(Channel? channel, HttpMessage message, WebSocketFrame frame) {
     if (panel.request.get() == message || panel.response.get() == message) {
       panel.changeState();
     }
@@ -104,12 +108,13 @@ class _DesktopHomePagePageState extends State<DesktopHomePage> implements EventL
   @override
   void initState() {
     super.initState();
+    proxyServer.onSessionCleared = () => requestListStateKey.currentState?.clean();
     proxyServer.addListener(this);
     McpService.instance.clearUiSession = () async {
       container.clear();
       requestListStateKey.currentState?.clean();
     };
-    if (widget.appConfiguration.mcpEnabled) {
+    if (widget.appConfiguration.mcpEnabled && !Platforms.isWeb) {
       McpService.instance.attach(proxyServer, existing: container);
       unawaited(McpService.instance.start(widget.appConfiguration).catchError((e) {
         logger.e('MCP auto-start failed: $e');
@@ -122,7 +127,9 @@ class _DesktopHomePagePageState extends State<DesktopHomePage> implements EventL
       }
     });
 
-    if (widget.appConfiguration.upgradeNoticeV32) {
+    if (Platforms.isWeb) {
+      // the web UI is updated with its server image; desktop release notes and update checks do not apply
+    } else if (widget.appConfiguration.upgradeNoticeV32) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         showUpgradeNotice();
       });
@@ -157,7 +164,7 @@ class _DesktopHomePagePageState extends State<DesktopHomePage> implements EventL
                   bottom: BorderSide(
                       color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
                       width: Platform.isMacOS ? 0.2 : 0.55))),
-          child: Platform.isMacOS
+          child: Platform.isMacOS || Platforms.isWeb
               ? Toolbar(proxyServer, requestListStateKey)
               : WindowsToolbar(title: Toolbar(proxyServer, requestListStateKey)),
         )),

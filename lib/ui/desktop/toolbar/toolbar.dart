@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,11 +22,13 @@ import 'package:proxypin/ui/component/utils.dart';
 import 'package:proxypin/ui/desktop/toolbar/phone_connect.dart';
 import 'package:proxypin/ui/desktop/toolbar/environment_switcher.dart';
 import 'package:proxypin/ui/desktop/toolbar/weak_network_indicator.dart';
+import 'package:proxypin/ui/desktop/toolbar/web_status.dart';
 import 'package:proxypin/ui/desktop/setting/setting.dart';
 import 'package:proxypin/ui/desktop/ssl/ssl.dart';
 import 'package:proxypin/ui/configuration.dart';
 import 'package:proxypin/ui/launch/launch.dart';
 import 'package:proxypin/utils/ip.dart';
+import 'package:proxypin/utils/platform.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:proxypin/l10n/app_localizations.dart';
 
@@ -51,13 +53,16 @@ class _ToolbarState extends State<Toolbar> {
 
   Future<void> _onClear() async {
     if (AppConfiguration.current?.clearConfirm != true) {
-      widget.requestListStateKey.currentState?.clean();
+      _clear();
       return;
     }
 
-    showConfirmDialog(context, title: localizations.clearConfirm, onConfirm: () {
-      widget.requestListStateKey.currentState?.clean();
-    });
+    showConfirmDialog(context, title: localizations.clearConfirm, onConfirm: _clear);
+  }
+
+  void _clear() {
+    widget.requestListStateKey.currentState?.clean();
+    widget.proxyServer.clearSession();
   }
 
   @override
@@ -77,6 +82,8 @@ class _ToolbarState extends State<Toolbar> {
         return true;
       }
     }
+
+    if (Platforms.isWeb) return false; // Cmd+W / Cmd+Q belong to the browser
 
     if (HardwareKeyboard.instance.isMetaPressed && event.logicalKey == LogicalKeyboardKey.keyW) {
       windowManager.blur();
@@ -102,25 +109,33 @@ class _ToolbarState extends State<Toolbar> {
   Widget build(BuildContext context) {
     return Row(children: [
       Padding(padding: EdgeInsets.only(left: Platform.isMacOS ? 83 : 20)),
-      SocketLaunch(proxyServer: widget.proxyServer, startup: widget.proxyServer.configuration.startup),
+      // web: capture follows the server's switch, never auto-started by a tab
+      SocketLaunch(
+          proxyServer: widget.proxyServer, startup: !Platforms.isWeb && widget.proxyServer.configuration.startup),
       const Padding(padding: EdgeInsets.only(left: 18)),
       IconButton(tooltip: localizations.clear, icon: const Icon(Icons.delete_outline, size: 21), onPressed: _onClear),
       const Padding(padding: EdgeInsets.only(left: 18)),
-      SslWidget(proxyServer: widget.proxyServer), // SSL配置
-      const Padding(padding: EdgeInsets.only(left: 18)),
+      // web: reverse proxy, no HTTPS interception / phone connection
+      if (!Platforms.isWeb) ...[
+        SslWidget(proxyServer: widget.proxyServer), // SSL配置
+        const Padding(padding: EdgeInsets.only(left: 18)),
+      ],
       Setting(proxyServer: widget.proxyServer), // 设置
       const WeakNetworkIndicator(), // 网络限制启用时显示，未启用时隐藏
-      const Padding(padding: EdgeInsets.only(left: 18)),
-      IconButton(
-          tooltip: localizations.mobileConnect,
-          icon: const Icon(Icons.phone_iphone_outlined, size: 21),
-          onPressed: () async {
-            final ips = await localIps(readCache: false);
-            phoneConnect(ips, widget.proxyServer.port);
-          }),
+      if (!Platforms.isWeb) ...[
+        const Padding(padding: EdgeInsets.only(left: 18)),
+        IconButton(
+            tooltip: localizations.mobileConnect,
+            icon: const Icon(Icons.phone_iphone_outlined, size: 21),
+            onPressed: () async {
+              final ips = await localIps(readCache: false);
+              phoneConnect(ips, widget.proxyServer.port);
+            }),
+      ],
       const Padding(padding: EdgeInsets.only(left: 18)),
       const EnvironmentSwitcher(), // 环境变量切换器
       const Padding(padding: EdgeInsets.only(left: 10)),
+      const WebServerStatus(),
     ]);
   }
 

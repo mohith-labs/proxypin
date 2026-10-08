@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 import 'package:flutter/material.dart';
+import 'package:proxypin/utils/platform.dart';
 import 'package:proxypin/l10n/app_localizations.dart';
 import 'package:proxypin/network/bin/configuration.dart';
 import 'package:proxypin/network/bin/server.dart';
@@ -32,6 +33,7 @@ import 'package:proxypin/ui/desktop/setting/weak_network.dart';
 import 'package:proxypin/ui/desktop/toolbar/mcp_panel.dart';
 
 import 'filter.dart';
+import 'reverse_proxy.dart';
 
 ///设置菜单
 /// @author wanghongen
@@ -72,7 +74,11 @@ class _SettingState extends State<Setting> {
             });
       },
       menuChildren: [
-        _ProxyMenu(proxyServer: widget.proxyServer),
+        // web: the server is a reverse proxy (port fixed by the container, no system proxy)
+        if (Platforms.isWeb)
+          item(localizations.reverseProxy, onPressed: () => openReverseProxyWindow(context))
+        else
+          _ProxyMenu(proxyServer: widget.proxyServer),
         item(localizations.domainFilter, onPressed: hostFilter),
         item(localizations.hosts, onPressed: hosts),
         item(localizations.requestBlock, onPressed: showRequestBlock),
@@ -84,7 +90,8 @@ class _SettingState extends State<Setting> {
         item(localizations.breakpoint, onPressed: requestBreakpoint),
         item(localizations.weakNetwork, onPressed: showWeakNetwork),
         item(localizations.externalProxy, onPressed: setExternalProxy),
-        item(localizations.mcpService, onPressed: () => McpServiceDialog.show(context, widget.proxyServer)),
+        if (!Platforms.isWeb)
+          item(localizations.mcpService, onPressed: () => McpServiceDialog.show(context, widget.proxyServer)),
         item(localizations.about, onPressed: showAbout),
       ],
     );

@@ -5,19 +5,47 @@ import 'package:proxypin/network/components/interceptor.dart';
 import 'package:proxypin/network/components/manager/environment_manager.dart';
 import 'package:proxypin/network/components/manager/request_breakpoint_manager.dart';
 import 'package:proxypin/network/http/http.dart';
-import 'package:proxypin/network/util/cache.dart';
 import 'package:proxypin/network/util/logger.dart';
-import 'package:proxypin/ui/component/multi_window.dart';
 
 import '../http/http_headers.dart';
+
+/// A request or response paused by a breakpoint rule, waiting for the user to edit/continue/abort it.
+class BreakpointHit {
+  final String requestId;
+  final bool isResponse;
+  final HttpRequest request;
+  final HttpResponse? response;
+
+  BreakpointHit({required this.requestId, required this.isResponse, required this.request, this.response});
+
+  /// Arguments of the 'BreakpointExecutor' window (see ui/component/multi_window.dart).
+  Map<String, dynamic> toWindowArgs() => {
+        'type': isResponse ? 'response' : 'request',
+        'request': request.toJson(),
+        if (response != null) 'response': response!.toJson(),
+        'requestId': requestId,
+      };
+}
 
 class RequestBreakpointInterceptor extends Interceptor {
   static RequestBreakpointInterceptor instance = RequestBreakpointInterceptor._();
 
+  /// Shows a paused message to the user. The desktop/mobile app opens the breakpoint executor window; the
+  /// headless server pushes it to the connected web clients. Without a presenter nothing is paused.
+  static void Function(BreakpointHit hit)? presenter;
+
+  /// Called when a paused message continues (resumed, aborted or timed out), e.g. to close stale editors.
+  static void Function(BreakpointHit hit)? onResolved;
+
+  /// How long a message may stay paused before it continues unmodified (a forgotten breakpoint must not hang
+  /// the client connection forever).
+  static Duration pauseTimeout = const Duration(minutes: 10);
+
   final manager = RequestBreakpointManager.instance;
 
-  final ExpiringCache<String, Completer<HttpRequest?>> _pausedRequests = ExpiringCache(Duration(minutes: 10));
-  final ExpiringCache<String, Completer<HttpResponse?>> _pausedResponses = ExpiringCache(Duration(minutes: 10));
+  // entries are removed on resume or when [pauseTimeout] elapses
+  final Map<String, Completer<HttpRequest?>> _pausedRequests = {};
+  final Map<String, Completer<HttpResponse?>> _pausedResponses = {};
 
   RequestBreakpointInterceptor._();
 
@@ -92,14 +120,22 @@ class RequestBreakpointInterceptor extends Interceptor {
     var url = request.requestUrl;
     for (var rule in requestBreakpointManager.list) {
       if (rule.match(url, method: request.method) && rule.interceptRequest) {
+        final show = presenter;
+        if (show == null) return request;
+
         Completer<HttpRequest?> completer = Completer();
         _pausedRequests[request.requestId] = completer;
 
-        // Open Breakpoint Executor Window
-        MultiWindow.openWindow("Breakpoint - Request", 'BreakpointExecutor',
-            args: {'type': 'request', 'request': request.toJson(), 'requestId': request.requestId});
+        final hit = BreakpointHit(requestId: request.requestId, isResponse: false, request: request);
+        show(hit);
 
-        return completer.future.then((req) {
+        final original = request;
+        return completer.future.timeout(pauseTimeout, onTimeout: () {
+          _pausedRequests.remove(request.requestId);
+          logger.w('Breakpoint for request ${request.requestId} timed out, continuing unmodified');
+          return original;
+        }).whenComplete(() => onResolved?.call(hit)).then((req) {
+          if (identical(req, original)) return original;
           if (req == null) {
             logger.d('Request ${request.requestId} was resumed null, aborting request');
             return null;
@@ -137,18 +173,22 @@ class RequestBreakpointInterceptor extends Interceptor {
     var url = request.requestUrl;
     for (var rule in requestBreakpointManager.list) {
       if (rule.match(url, method: request.method) && rule.interceptResponse) {
+        final show = presenter;
+        if (show == null) return response;
+
         Completer<HttpResponse?> completer = Completer();
         _pausedResponses[request.requestId] = completer;
 
-        // Open Breakpoint Executor Window
-        MultiWindow.openWindow("Breakpoint - Response", 'BreakpointExecutor', args: {
-          'type': 'response',
-          'request': request.toJson(),
-          'response': response.toJson(),
-          'requestId': request.requestId
-        });
+        final hit = BreakpointHit(requestId: request.requestId, isResponse: true, request: request, response: response);
+        show(hit);
 
-        return completer.future.then((res) {
+        final original = response;
+        return completer.future.timeout(pauseTimeout, onTimeout: () {
+          _pausedResponses.remove(request.requestId);
+          logger.w('Breakpoint for response ${request.requestId} timed out, continuing unmodified');
+          return original;
+        }).whenComplete(() => onResolved?.call(hit)).then((res) {
+          if (identical(res, original)) return original;
           if (res == null) {
             return null;
           }

@@ -16,7 +16,8 @@
 
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/picked_file.dart';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:date_format/date_format.dart';
 import 'package:proxypin/ui/component/multi_window_compat.dart';
@@ -377,10 +378,11 @@ class _FavoritesActions extends StatelessWidget {
                   onPressed: () async {
                     final file = await FilePicker.pickFile(
                         type: FileType.custom, allowedExtensions: ['json', 'har']);
-                    if (file?.path == null) return;
+                    final path = await PickedFiles.readablePath(file);
+                    if (path == null) return;
 
                     try {
-                      await FavoriteStorage.importFromFile(file!.path!);
+                      await FavoriteStorage.importFromFile(path);
                       if (context.mounted) CustomToast.success(localizations.importSuccess).show(context);
                       onChanged();
                     } catch (e) {

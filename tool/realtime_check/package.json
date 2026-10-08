@@ -1,0 +1,11 @@
+{
+  "name": "proxypin-realtime-check",
+  "private": true,
+  "description": "WebSocket / Socket.IO / SSE checks for the ProxyPin web reverse proxy",
+  "type": "module",
+  "dependencies": {
+    "socket.io": "^4.8.0",
+    "socket.io-client": "^4.8.0",
+    "ws": "^8.18.0"
+  }
+}

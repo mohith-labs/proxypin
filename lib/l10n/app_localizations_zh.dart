@@ -1405,6 +1405,62 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get resume => '继续';
+
+  @override
+  String get reverseProxy => '反向代理';
+
+  @override
+  String get reverseProxyEnable => '启用反向代理';
+
+  @override
+  String reverseProxyHint(String origin) {
+    return '将应用的请求地址改为 $origin<路径>：匹配的请求会转发到规则的目标地址并被抓包（重写、脚本、断点均生效）。/__proxypin/ 为本控制台保留路径。';
+  }
+
+  @override
+  String get reverseProxyPath => '路径';
+
+  @override
+  String get reverseProxyTarget => '目标地址';
+
+  @override
+  String get reverseProxyStripPrefix => '去除路径前缀';
+
+  @override
+  String get reverseProxyPreserveHost => '保留 Host 请求头';
+
+  @override
+  String get reverseProxyRewriteResponse => '重写重定向与 Cookie';
+
+  @override
+  String get reverseProxyUrl => '代理地址';
+
+  @override
+  String get reverseProxyExample => '示例';
+
+  @override
+  String get reverseProxyEmpty => '暂无规则，可添加如 /proxy → https://example.com';
+
+  @override
+  String get reverseProxyInvalidPath => '路径必须以 / 开头';
+
+  @override
+  String get reverseProxyDuplicatePath => '已有规则使用该路径';
+
+  @override
+  String get reverseProxyReservedPath => '/__proxypin 为控制台保留路径';
+
+  @override
+  String get reverseProxyInvalidTarget => '请输入完整的 http(s) 地址（不含查询参数），如 https://example.com/api';
+
+  @override
+  String get webConsoleDisconnected => '与 ProxyPin 服务端断开连接，正在重连…';
+
+  @override
+  String get capturePaused => '已暂停抓包';
+
+  @override
+  String get webSignOut => '退出登录';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -2578,4 +2634,60 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get resume => '繼續';
+
+  @override
+  String get reverseProxy => '反向代理';
+
+  @override
+  String get reverseProxyEnable => '啟用反向代理';
+
+  @override
+  String reverseProxyHint(String origin) {
+    return '將應用的請求地址改為 $origin<路徑>：符合的請求會轉發到規則的目標地址並被抓包（重寫、腳本、斷點均生效）。/__proxypin/ 為本控制台保留路徑。';
+  }
+
+  @override
+  String get reverseProxyPath => '路徑';
+
+  @override
+  String get reverseProxyTarget => '目標地址';
+
+  @override
+  String get reverseProxyStripPrefix => '去除路徑前綴';
+
+  @override
+  String get reverseProxyPreserveHost => '保留 Host 請求頭';
+
+  @override
+  String get reverseProxyRewriteResponse => '重寫重定向與 Cookie';
+
+  @override
+  String get reverseProxyUrl => '代理地址';
+
+  @override
+  String get reverseProxyExample => '範例';
+
+  @override
+  String get reverseProxyEmpty => '暫無規則，可新增如 /proxy → https://example.com';
+
+  @override
+  String get reverseProxyInvalidPath => '路徑必須以 / 開頭';
+
+  @override
+  String get reverseProxyDuplicatePath => '已有規則使用該路徑';
+
+  @override
+  String get reverseProxyReservedPath => '/__proxypin 為控制台保留路徑';
+
+  @override
+  String get reverseProxyInvalidTarget => '請輸入完整的 http(s) 地址（不含查詢參數），如 https://example.com/api';
+
+  @override
+  String get webConsoleDisconnected => '與 ProxyPin 服務端斷開連接，正在重連…';
+
+  @override
+  String get capturePaused => '已暫停抓包';
+
+  @override
+  String get webSignOut => '登出';
 }

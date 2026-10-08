@@ -1,6 +1,6 @@
 
 
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 class Files {
   //获取文件名称

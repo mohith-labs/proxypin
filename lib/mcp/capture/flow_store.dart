@@ -68,7 +68,7 @@ class FlowStore extends EventListener {
       this.maxHistorySessions = defaultMaxHistorySessions});
 
   @override
-  void onRequest(Channel channel, HttpRequest request) {
+  void onRequest(Channel? channel, HttpRequest request) {
     _put(request);
   }
 
@@ -82,7 +82,7 @@ class FlowStore extends EventListener {
   }
 
   @override
-  void onMessage(Channel channel, HttpMessage message, WebSocketFrame frame) {
+  void onMessage(Channel? channel, HttpMessage message, WebSocketFrame frame) {
     var id = message.requestId;
     var list = _wsFrames.putIfAbsent(id, () => []);
     list.add(frame);

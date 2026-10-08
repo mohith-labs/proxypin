@@ -16,12 +16,13 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
-import 'package:code_forge/code_forge.dart';
 import 'package:flutter/material.dart';
+import 'package:proxypin/ui/component/code_editor/code_forge_compat.dart';
 import 'package:proxypin/network/bin/configuration.dart';
 import 'package:proxypin/network/components/manager/environment_manager.dart';
+import 'package:proxypin/network/components/request_breakpoint.dart';
 import 'package:proxypin/ui/component/chinese_font.dart';
 import 'package:proxypin/ui/component/multi_window_compat.dart';
 import 'package:proxypin/ui/component/multi_window.dart';
@@ -34,10 +35,17 @@ import 'package:proxypin/utils/platform.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'l10n/app_localizations.dart';
+import 'web/web_entry_stub.dart' if (dart.library.js_interop) 'web/web_app.dart' as web_entry;
 
 ///主入口
 ///@author wanghongen
 void main(List<String> args) async {
+  // 浏览器: 由 ProxyPin 服务端提供抓包引擎(反向代理), 这里只运行界面
+  if (Platforms.isWeb) {
+    await web_entry.runWebApp();
+    return;
+  }
+
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await RustLib.init();
@@ -69,6 +77,11 @@ void main(List<String> args) async {
     runApp(FluentApp(multiWindow(windowId, argument), appConfiguration));
     return;
   }
+
+  // 断点命中时打开断点执行窗口(移动端由 MultiWindow.onOpenWindow 推入页面)
+  RequestBreakpointInterceptor.presenter = (hit) => MultiWindow.openWindow(
+      hit.isResponse ? "Breakpoint - Response" : "Breakpoint - Request", 'BreakpointExecutor',
+      args: hit.toWindowArgs());
 
   var configuration = Configuration.instance;
   // 预热环境变量,避免第一个请求命中时才 IO

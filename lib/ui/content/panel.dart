@@ -370,6 +370,18 @@ class General extends StatelessWidget {
       content.add(RowWidget("App", request.processInfo!.name));
       content.add(const SizedBox(height: 15));
     }
+    // web reverse proxy: which rule routed it and what the client called
+    final route = request.attributes['reverseProxy'];
+    if (route is Map) {
+      final name = route['name']?.toString() ?? '';
+      content.add(RowWidget("Reverse Proxy", '${name.isEmpty ? '' : '$name: '}${route['path']} → ${route['target']}'));
+      content.add(const SizedBox(height: 15));
+      final clientHost = route['clientHost'];
+      final clientUri = route['clientUri'] ?? '';
+      content.add(RowWidget(
+          "Client Request", clientHost == null ? '$clientUri' : '${route['clientScheme'] ?? 'http'}://$clientHost$clientUri'));
+      content.add(const SizedBox(height: 15));
+    }
 
     return ListView(children: [expansionTile("General", content)]);
   }

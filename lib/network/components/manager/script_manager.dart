@@ -15,9 +15,8 @@
  */
 
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
-import 'package:proxypin/ui/component/multi_window_compat.dart';
 import 'package:proxypin/network/components/manager/environment_manager.dart';
 import 'package:proxypin/network/http/http.dart';
 import 'package:proxypin/network/util/cache.dart';
@@ -25,10 +24,10 @@ import 'package:proxypin/network/util/logger.dart';
 import 'package:proxypin/network/util/url_pattern.dart';
 import 'package:proxypin/network/util/random.dart';
 import 'package:proxypin/storage/path.dart';
-import 'package:proxypin/ui/component/device.dart';
 import 'package:http/http.dart' as http;
 
 import '../js/script_engine.dart';
+import 'device_id.dart';
 
 /// @author wanghongen
 /// 2023/10/06
@@ -64,7 +63,7 @@ async function onResponse(context, request, response) {
 
   final ExpiringCache<ScriptItem, String> _scriptMap = ExpiringCache<ScriptItem, String>(Duration(minutes: 15));
 
-  static late JavaScriptRuntimePool flutterJsPool;
+  static late ScriptRuntime scriptRuntime;
 
   static String? deviceId;
 
@@ -77,24 +76,12 @@ async function onResponse(context, request, response) {
     if (_instance == null) {
       _instance = ScriptManager._();
       await _instance?.reloadScript();
-      flutterJsPool = JavaScriptRuntimePool(size: JavaScriptEngine.defaultRuntimePoolSize, consoleLog: consoleLog);
-      deviceId = await DeviceUtils.deviceId();
+      scriptRuntime = ScriptRuntime.create(consoleLog: consoleLog);
+      deviceId = await scriptDeviceId();
 
       logger.d('init script manager $deviceId');
     }
     return _instance!;
-  }
-
-  static void registerConsoleLog(String fromWindowId) {
-    LogHandler logHandler = LogHandler(
-        channelId: fromWindowId,
-        handle: (logInfo) {
-          DesktopMultiWindow.invokeMethod(fromWindowId, "consoleLog", logInfo.toJson()).onError((e, t) {
-            logger.e("consoleLog error: $e");
-            removeLogHandler(fromWindowId);
-          });
-        });
-    registerLogHandler(logHandler);
   }
 
   static void registerLogHandler(LogHandler logHandler) {
@@ -102,6 +89,13 @@ async function onResponse(context, request, response) {
       _logHandlers.removeWhere((it) => it.channelId == logHandler.channelId);
     }
     _logHandlers.add(logHandler);
+  }
+
+  /// Delivers a log line produced elsewhere (the web UI receives script logs from the server).
+  static void publishLog(LogInfo logInfo) {
+    for (final handler in List.of(_logHandlers)) {
+      handler.handle.call(logInfo);
+    }
   }
 
   static void removeLogHandler(String channelId) {
@@ -305,11 +299,8 @@ async function onResponse(context, request, response) {
           continue;
         }
 
-        var result = await flutterJsPool.run((flutterJs) async {
-          var jsResult = await flutterJs.evaluateAsync(
-              """var request = $jsRequest, context = $context;  request['scriptContext'] = context; $script\n  onRequest(context, request)""");
-          return await JavaScriptEngine.jsResultResolve(flutterJs, jsResult);
-        });
+        var result = await scriptRuntime.evaluate(
+            """var request = $jsRequest, context = $context;  request['scriptContext'] = context; $script\n  onRequest(context, request)""");
         if (result == null) {
           return null;
         }
@@ -350,12 +341,9 @@ async function onResponse(context, request, response) {
           continue;
         }
 
-        var result = await flutterJsPool.run((flutterJs) async {
-          var jsResult = await flutterJs.evaluateAsync(
-              """var response = $jsResponse, context = $context;  response['scriptContext'] = context; $script
+        var result = await scriptRuntime.evaluate(
+            """var response = $jsResponse, context = $context;  response['scriptContext'] = context; $script
             \n  onResponse(context, $jsRequest, response);""");
-          return await JavaScriptEngine.jsResultResolve(flutterJs, jsResult);
-        });
         if (result == null) {
           return null;
         }

@@ -160,6 +160,12 @@ class ProxyServer {
     }
   }
 
+  /// The UI cleared its capture list (the web UI also clears the server's session).
+  Future<void> clearSession() async {}
+
+  /// Set by the UI: the session was cleared elsewhere (another web UI tab).
+  void Function()? onSessionCleared;
+
   ///添加监听器
   void addListener(EventListener listener) {
     listeners.add(listener);

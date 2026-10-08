@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/picked_file.dart';
+import 'package:proxypin/utils/io.dart';
 import 'dart:math' as math;
 
 import 'package:proxypin/ui/component/multi_window_compat.dart';
@@ -135,7 +136,7 @@ class _RequestCryptoPageState extends State<RequestCryptoPage> {
 
   Future<void> _import() async {
     final file = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: ['json']);
-    final path = file?.path;
+    final path = await PickedFiles.readablePath(file);
     if (path == null) return;
     try {
       final content = await File(path).readAsString();

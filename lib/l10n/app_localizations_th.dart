@@ -1416,4 +1416,60 @@ class AppLocalizationsTh extends AppLocalizations {
 
   @override
   String get resume => 'ทำงานต่อ';
+
+  @override
+  String get reverseProxy => 'Reverse Proxy';
+
+  @override
+  String get reverseProxyEnable => 'Enable reverse proxy';
+
+  @override
+  String reverseProxyHint(String origin) {
+    return 'Point your app at $origin<path> instead of the real server: matching requests are forwarded to the rule\'s target and captured (rewrite, scripts and breakpoints apply). /__proxypin/ is reserved for this console.';
+  }
+
+  @override
+  String get reverseProxyPath => 'Path';
+
+  @override
+  String get reverseProxyTarget => 'Target';
+
+  @override
+  String get reverseProxyStripPrefix => 'Strip path prefix';
+
+  @override
+  String get reverseProxyPreserveHost => 'Preserve Host header';
+
+  @override
+  String get reverseProxyRewriteResponse => 'Rewrite redirects and cookies';
+
+  @override
+  String get reverseProxyUrl => 'Proxy URL';
+
+  @override
+  String get reverseProxyExample => 'Example';
+
+  @override
+  String get reverseProxyEmpty => 'No rules yet. Add one, e.g. /proxy → https://example.com';
+
+  @override
+  String get reverseProxyInvalidPath => 'Path must start with /';
+
+  @override
+  String get reverseProxyDuplicatePath => 'Another rule already uses this path';
+
+  @override
+  String get reverseProxyReservedPath => '/__proxypin is reserved for the web console';
+
+  @override
+  String get reverseProxyInvalidTarget => 'Enter an absolute http(s) URL without query, e.g. https://example.com/api';
+
+  @override
+  String get webConsoleDisconnected => 'Disconnected from the ProxyPin server, reconnecting…';
+
+  @override
+  String get capturePaused => 'Capture paused';
+
+  @override
+  String get webSignOut => 'Sign out';
 }

@@ -230,7 +230,7 @@ class HttpProxyChannelHandler extends ChannelHandler<HttpRequest> {
 
         await proxyChannel.write(channelContext, httpRequest);
       } else {
-        if (clientChannel.isSsl) {
+        if (upstreamSecure(clientChannel, httpRequest)) {
           await HttpClients.connectRequest(channelContext, hostAndPort, proxyChannel, proxyInfo: proxyInfo);
           await proxyChannel.secureSocket(channelContext,
               host: hostAndPort.host, supportedProtocols: httpRequest.protocolVersion == "HTTP/2" ? ["h2"] : null);
@@ -252,7 +252,7 @@ class HttpProxyChannelHandler extends ChannelHandler<HttpRequest> {
     }
 
     final proxyChannel = await connectRemote(channelContext, clientChannel, remoteAddress);
-    if (clientChannel.isSsl) {
+    if (upstreamSecure(clientChannel, httpRequest)) {
       await proxyChannel.secureSocket(channelContext,
           host: hostAndPort.host,
           supportedProtocols: channelContext.clientChannel?.selectedProtocol == null
@@ -267,6 +267,10 @@ class HttpProxyChannelHandler extends ChannelHandler<HttpRequest> {
     }
     return proxyChannel;
   }
+
+  /// Whether the upstream connection is TLS. As a forward proxy ProxyPin mirrors the client side (HTTPS clients
+  /// were intercepted); the reverse proxy overrides this with the scheme of the configured target.
+  bool upstreamSecure(Channel clientChannel, HttpRequest request) => clientChannel.isSsl;
 
   /// 连接远程
   Future<Channel> connectRemote(ChannelContext channelContext, Channel clientChannel, HostAndPort connectHost) async {

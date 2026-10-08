@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -73,6 +73,8 @@ class _SocketLaunchState extends State<SocketLaunch> with WindowListener, Widget
     }
 
     WidgetsBinding.instance.addObserver(this);
+    // web: reflect the server's capture switch
+    if (Platforms.isWeb) started = widget.proxyServer.isRunning;
     //启动代理服务器
     if (widget.startup) {
       start();
@@ -204,7 +206,8 @@ class _SocketLaunchState extends State<SocketLaunch> with WindowListener, Widget
       }
     }
 
-    if (state == AppLifecycleState.detached) {
+    // web: closing a tab must not stop the shared server
+    if (state == AppLifecycleState.detached && !Platforms.isWeb) {
       logger.d('AppLifecycleState.detached');
       widget.onStop?.call();
       widget.proxyServer.stop();

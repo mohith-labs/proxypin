@@ -15,7 +15,7 @@
  */
 
 import 'dart:collection';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -188,7 +188,7 @@ class DomainWidgetState extends State<DomainList> with AutomaticKeepAliveClientM
   }
 
   ///添加请求
-  void add(Channel channel, HttpRequest request) {
+  void add(Channel? channel, HttpRequest request) {
     String? host = request.remoteDomain();
     if (host == null) {
       return;

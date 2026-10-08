@@ -110,7 +110,7 @@ class RequestListState extends State<RequestListWidget> {
   }
 
   ///添加请求
-  void add(Channel channel, HttpRequest request) {
+  void add(Channel? channel, HttpRequest request) {
     container.add(request);
     requestSequenceKey.currentState?.add(request);
     domainListKey.currentState?.add(request);

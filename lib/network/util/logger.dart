@@ -1,6 +1,8 @@
 import 'package:logger/logger.dart';
 
-final logger = Logger(
+/// Engine log. The headless server installs a production logger (the default filter drops everything in release
+/// builds, which is right for the app but not for a server).
+Logger logger = Logger(
     printer: PrettyPrinter(
       methodCount: 0,
       errorMethodCount: 15,

@@ -30,7 +30,7 @@ import 'manager/script_manager.dart';
 /// @author Hongen Wang
 class RequestMapInterceptor extends Interceptor {
   static RequestMapInterceptor instance = RequestMapInterceptor._();
-  static JavaScriptRuntimePool? flutterJsPool;
+  static ScriptRuntime? scriptRuntime;
   static Map<dynamic, dynamic> scriptSession = {};
 
   final managerInstance = RequestMapManager.instance;
@@ -103,18 +103,14 @@ class RequestMapInterceptor extends Interceptor {
 
   /// script执行
   Future<HttpResponse?> executeScript(HttpRequest request, RequestMapRule rule, String script) async {
-    flutterJsPool ??=
-        JavaScriptRuntimePool(size: JavaScriptEngine.defaultRuntimePoolSize, consoleLog: ScriptManager.consoleLog);
+    scriptRuntime ??= ScriptRuntime.create(consoleLog: ScriptManager.consoleLog);
     final ctxMap = scriptContext(rule);
     final envBefore = Map<String, String>.from(ctxMap['env'] as Map);
     var context = jsonEncode(ctxMap);
     var jsRequest = jsonEncode(await JavaScriptEngine.convertJsRequest(request));
 
-    var result = await flutterJsPool!.run((flutterJs) async {
-      var jsResult = await flutterJs.evaluateAsync(
-          """var request = $jsRequest, context = $context;  request['scriptContext'] = context; $script\n  onRequest(context, request)""");
-      return await JavaScriptEngine.jsResultResolve(flutterJs, jsResult);
-    });
+    var result = await scriptRuntime!.evaluate(
+        """var request = $jsRequest, context = $context;  request['scriptContext'] = context; $script\n  onRequest(context, request)""");
     if (result == null) {
       return null;
     }

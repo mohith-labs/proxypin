@@ -16,7 +16,7 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -97,7 +97,7 @@ class MobileHomeState extends State<MobileHomePage> implements EventListener, Li
   AppLocalizations get localizations => AppLocalizations.of(context)!;
 
   @override
-  void onRequest(Channel channel, HttpRequest request) {
+  void onRequest(Channel? channel, HttpRequest request) {
     MobileApp.requestStateKey.currentState!.add(channel, request);
     PictureInPicture.addData(request.requestUrl);
 
@@ -114,7 +114,7 @@ class MobileHomeState extends State<MobileHomePage> implements EventListener, Li
   }
 
   @override
-  void onMessage(Channel channel, HttpMessage message, WebSocketFrame frame) {
+  void onMessage(Channel? channel, HttpMessage message, WebSocketFrame frame) {
     var panel = NetworkTabController.current;
     if (panel?.request.get() == message || panel?.response.get() == message) {
       panel?.changeState();

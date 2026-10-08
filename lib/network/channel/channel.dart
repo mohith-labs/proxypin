@@ -58,6 +58,10 @@ class Channel {
   //是否打开
   bool isOpen = true;
 
+  // close() already ran. Not the same as !isOpen: isOpen also turns false when the peer ends the connection
+  // (ChannelDispatcher.channelInactive), and our side must still be closed then.
+  bool _closeCalled = false;
+
   //此通道连接到的远程地址
   final InetSocketAddress remoteSocketAddress;
 
@@ -162,9 +166,12 @@ class Channel {
 
   ///关闭此channel
   void close() async {
-    if (isClosed) {
+    // Checking isClosed here would skip sockets whose peer half-closed first: they would never get our FIN
+    // (a WebSocket client then waits out its close timeout after the closing handshake) and stay open.
+    if (_closeCalled) {
       return;
     }
+    _closeCalled = true;
 
     //写入中，延迟关闭
     int retry = 0;
@@ -172,11 +179,11 @@ class Channel {
       await Future.delayed(const Duration(milliseconds: 150));
     }
     isOpen = false;
-    // if (!isWriting) {
-    //   await _socket.flush();
-    // }
-    await _socket.close();
-    // _socket.destroy();
+    try {
+      await _socket.close();
+    } catch (e) {
+      logger.d("[$id] close: $e"); // already reset by the peer
+    }
   }
 
   ///返回此channel是否打开

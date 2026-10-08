@@ -15,9 +15,10 @@
  */
 
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:flutter/material.dart';
+import 'package:proxypin/network/util/app_version.dart';
 import 'package:proxypin/network/util/logger.dart';
 import 'package:proxypin/utils/platform.dart';
 import 'package:path_provider/path_provider.dart';
@@ -63,7 +64,7 @@ class ThemeModel {
 }
 
 class AppConfiguration {
-  static const String version = "1.3.3";
+  static const String version = appVersion;
 
   ValueNotifier<bool> globalChange = ValueNotifier(false);
 
@@ -181,6 +182,9 @@ class AppConfiguration {
   }
 
   Future<File> get _path async {
+    // web: UI preferences stay in this browser (localStorage), not on the shared server
+    if (Platforms.isWeb) return File('localstorage://ui_config.json');
+
     if (Platforms.isDesktop()) {
       var userHome = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
       return File('$userHome${Platform.pathSeparator}.proxypin${Platform.pathSeparator}ui_config.json');
@@ -285,7 +289,7 @@ class AppConfiguration {
         "windowSize": windowSize == null ? null : {"width": windowSize?.width, "height": windowSize?.height},
       if (Platforms.isDesktop())
         "windowPosition": windowPosition == null ? null : {"dx": windowPosition?.dx, "dy": windowPosition?.dy},
-      if (Platforms.isDesktop()) 'panelRatio': panelRatio,
+      if (Platforms.isDesktop() || Platforms.isWeb) 'panelRatio': panelRatio,
       if (Platforms.isDesktop()) 'minimizeToTray': minimizeToTray,
       // MCP 配置所有平台都写入
       'mcpEnabled': mcpEnabled,

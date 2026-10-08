@@ -17,6 +17,7 @@ and easy to use.
 * Request Blocking: Support blocking requests according to URL, and do not send requests to the server.
 * History: Automatically save the captured traffic data for easy backtracking and viewing. Support HAR format export and import.
 * Others: Favorites, toolbox, common encoding tools, as well as QR codes, regular expressions, etc.
+* Web / Docker: run ProxyPin as a server with a browser UI and path-based reverse proxy (`/proxy → https://example.com`), see [WEB.md](WEB.md).
 
 **Mac will prompt untrusted developers when first opened, you need to go to System Preferences-Security & Privacy-Allow any source.**
 

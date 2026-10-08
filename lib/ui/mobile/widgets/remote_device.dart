@@ -15,7 +15,7 @@
  */
 
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:flutter/material.dart';
 import 'package:proxypin/l10n/app_localizations.dart';

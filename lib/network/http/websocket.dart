@@ -15,7 +15,7 @@
  */
 
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 import 'dart:typed_data';
 
 import 'package:proxypin/network/util/logger.dart';

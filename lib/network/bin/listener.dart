@@ -4,12 +4,13 @@ import 'package:proxypin/network/http/http.dart';
 import 'package:proxypin/network/http/websocket.dart';
 
 ///请求和响应事件监听
+/// The channel is null when events are replayed by the web UI from the ProxyPin server.
 abstract class EventListener {
-  void onRequest(Channel channel, HttpRequest request);
+  void onRequest(Channel? channel, HttpRequest request);
 
   void onResponse(ChannelContext channelContext, HttpResponse response);
 
-  void onMessage(Channel channel, HttpMessage message, WebSocketFrame frame) {}
+  void onMessage(Channel? channel, HttpMessage message, WebSocketFrame frame) {}
 }
 
 
@@ -19,7 +20,7 @@ class CombinedEventListener extends EventListener {
   CombinedEventListener(this.listeners);
 
   @override
-  void onRequest(Channel channel, HttpRequest request) {
+  void onRequest(Channel? channel, HttpRequest request) {
     for (var element in listeners) {
       element.onRequest(channel, request);
     }
@@ -33,7 +34,7 @@ class CombinedEventListener extends EventListener {
   }
 
   @override
-  void onMessage(Channel channel, HttpMessage message, WebSocketFrame frame) {
+  void onMessage(Channel? channel, HttpMessage message, WebSocketFrame frame) {
     for (var element in listeners) {
       element.onMessage(channel, message, frame);
     }

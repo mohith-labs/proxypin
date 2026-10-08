@@ -18,7 +18,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:proxypin/native/process_info.dart';
 import 'package:proxypin/network/bin/configuration.dart';
 import 'package:proxypin/network/channel/channel.dart';
 import 'package:proxypin/network/channel/channel_context.dart';
@@ -82,8 +81,8 @@ class Server extends Network {
 
   Server(this.configuration, {this.listener});
 
-  Future<ServerSocket> bind(int port) async {
-    serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, port);
+  Future<ServerSocket> bind(int port, {Object? address}) async {
+    serverSocket = await ServerSocket.bind(address ?? InternetAddress.anyIPv4, port);
     serverSubscription = serverSocket.listen((socket) {
       var channel = Channel(socket);
       _connections.add(channel);
@@ -205,7 +204,7 @@ class Server extends Network {
         var port = 443;
 
         if (domain == null) {
-          var remote = await ProcessInfoPlugin.getRemoteAddressByPort(channel.remoteSocketAddress.port);
+          var remote = await ProcessInfoUtils.getRemoteAddressByPort(channel.remoteSocketAddress.port);
           domain = remote?.host;
           port = remote?.port ?? port;
           serviceName = domain;

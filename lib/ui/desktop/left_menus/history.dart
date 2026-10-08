@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import 'dart:async';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 import 'dart:math';
 
 import 'package:date_format/date_format.dart';
@@ -199,7 +199,7 @@ class _HistoryListState extends State<_HistoryListWidget> {
     }
 
     try {
-      var historyItem = await storage.addHarFile(file.xFile);
+      var historyItem = await storage.addHarFile(await file.xFile.readAsString());
       setState(() {
         toRequestsView(historyItem);
         FlutterToastr.show(localizations.importSuccess, context);

@@ -15,9 +15,9 @@
  */
 
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
-import 'package:path_provider/path_provider.dart';
+import 'package:proxypin/storage/path.dart';
 import 'package:proxypin/network/util/url_pattern.dart';
 
 /// 请求屏蔽
@@ -41,8 +41,11 @@ class RequestBlockManager {
     return _instance!;
   }
 
+  /// 配置文件被外部修改后重新加载(如 Web 端编辑)
+  Future<void> reload() => _load();
+
   static Future<File> configFile() async {
-    var directory = await getApplicationSupportDirectory().then((it) => it.path);
+    var directory = await Paths.homePath();
     var file = File('$directory${Platform.pathSeparator}request_block.json');
     if (!await file.exists()) {
       await file.create(recursive: true);

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/picked_file.dart';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -146,10 +147,10 @@ class _WebSocketRequestPageState extends State<WebSocketRequestPage> {
       if (Platforms.isMobile()) {
         final file = await FilePicker.pickFile();
         if (file == null) return;
-        path = file.path;
+        path = await PickedFiles.readablePath(file);
       } else {
         final file = await FilePicker.pickFile();
-        path = file?.path;
+        path = await PickedFiles.readablePath(file);
       }
       if (path == null) return;
       final file = File(path);

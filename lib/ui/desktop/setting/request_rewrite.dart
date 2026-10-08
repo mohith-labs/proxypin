@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/picked_file.dart';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:proxypin/ui/component/multi_window_compat.dart';
 import 'package:file_picker/file_picker.dart';
@@ -158,7 +159,7 @@ class RequestRewriteState extends State<RequestRewriteWidget> {
   //导入js
   Future<void> import() async {
     final file = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: ['config', 'json']);
-    String? path = file?.path;
+    String? path = await PickedFiles.readablePath(file);
 
     if (path == null) {
       return;

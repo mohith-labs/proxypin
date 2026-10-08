@@ -1,6 +1,8 @@
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
-import 'package:path_provider/path_provider.dart';
+import 'platform/app_dirs_server.dart'
+    if (dart.library.js_interop) 'platform/app_dirs_web.dart'
+    if (dart.library.ui) 'platform/app_dirs_flutter.dart' as dirs;
 
 class Paths {
   static String? _homePath;
@@ -13,7 +15,7 @@ class Paths {
   static Future<String> homePath() async {
     if (_homePath != null) return _homePath!;
 
-    _homePath = await getApplicationSupportDirectory().then((it) => it.path);
+    _homePath = await dirs.supportDirectory();
     return _homePath!;
   }
 
@@ -23,8 +25,7 @@ class Paths {
       return _cache[fileName]!;
     }
 
-    final directory = await getApplicationSupportDirectory();
-    var file = File('${directory.path}${Platform.pathSeparator}$fileName');
+    var file = File('${await homePath()}${Platform.pathSeparator}$fileName');
 
     if (!await file.exists()) {
       await file.create(recursive: true);
@@ -34,8 +35,7 @@ class Paths {
   }
 
   static Future<File> createFile(String dir, String filename) async {
-    final directory = await getApplicationSupportDirectory();
-    var file = File('${directory.path}${Platform.pathSeparator}$dir${Platform.pathSeparator}$filename');
+    var file = File('${await homePath()}${Platform.pathSeparator}$dir${Platform.pathSeparator}$filename');
     return file.create(recursive: true);
   }
 }

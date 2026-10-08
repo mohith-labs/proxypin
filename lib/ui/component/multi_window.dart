@@ -15,7 +15,7 @@
  */
 
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:proxypin/ui/component/multi_window_compat.dart';
 import 'package:flutter/material.dart';
@@ -44,6 +44,7 @@ import 'package:window_manager/window_manager.dart';
 import '../desktop/setting/request_breakpoint.dart';
 import '../desktop/setting/request_crypto.dart';
 import '../desktop/setting/request_map.dart';
+import '../desktop/setting/reverse_proxy.dart';
 import '../toolbox/cert_hash.dart';
 import '../toolbox/encoder.dart';
 import '../toolbox/js_run.dart';
@@ -165,6 +166,10 @@ Widget multiWindow(String windowId, Map<dynamic, dynamic> argument) {
     return WebSocketRequestPage(windowId: windowId);
   }
 
+  if (argument['name'] == 'ReverseProxyPage') {
+    return ReverseProxyPage(windowId: windowId);
+  }
+
   if (argument['name'] == 'BreakpointExecutor') {
     return BreakpointExecutor(
       windowId: windowId,
@@ -197,6 +202,10 @@ class MultiWindow {
   /// 刷新请求重写
   static Future<void> invokeRefreshRewrite(Operation operation,
       {int? index, RequestRewriteRule? rule, List<RewriteItem>? items, bool? enabled, List<int>? order}) async {
+    if (Platforms.isWeb) {
+      await _applyRewriteInPlace(operation, index: index, rule: rule, items: items, enabled: enabled);
+      return;
+    }
     await DesktopMultiWindow.invokeMainWindowMethod("refreshRequestRewrite", {
       "enabled": enabled,
       "operation": operation.name,
@@ -231,6 +240,32 @@ class MultiWindow {
     await window.show();
 
     return window;
+  }
+
+  /// Web UI: every "window" shares the main isolate's RequestRewriteManager, which the editors have already
+  /// changed (delete/reorder) or partly changed (add/update); finish the operation once, then persist.
+  static Future<void> _applyRewriteInPlace(Operation operation,
+      {int? index, RequestRewriteRule? rule, List<RewriteItem>? items, bool? enabled}) async {
+    final requestRewrites = await RequestRewriteManager.instance;
+    switch (operation) {
+      case Operation.add:
+        if (rule == null) break;
+        final existing = requestRewrites.rules.indexOf(rule);
+        if (existing >= 0) {
+          await requestRewrites.updateRule(existing, rule, items);
+        } else {
+          await requestRewrites.addRule(rule, items ?? []);
+        }
+      case Operation.update:
+        if (rule == null) break;
+        final target = index != null && index < requestRewrites.rules.length ? index : requestRewrites.rules.indexOf(rule);
+        if (target >= 0) await requestRewrites.updateRule(target, rule, items);
+      case Operation.enabled:
+        if (enabled != null) requestRewrites.enabled = enabled;
+      default:
+        break;
+    }
+    await requestRewrites.flushRequestRewriteConfig();
   }
 
   static bool _refreshRewrite = false;
@@ -328,7 +363,7 @@ void registerMethodHandler() {
     }
 
     if (call.method == 'registerConsoleLog') {
-      ScriptManager.registerConsoleLog(fromWindowId);
+      _registerConsoleLog(fromWindowId);
       return "done";
     }
 
@@ -353,6 +388,18 @@ void registerMethodHandler() {
 
     return 'done';
   });
+}
+
+/// 脚本日志窗口: 主窗口把 ScriptManager 的日志转发给该窗口
+void _registerConsoleLog(String fromWindowId) {
+  ScriptManager.registerLogHandler(LogHandler(
+      channelId: fromWindowId,
+      handle: (logInfo) {
+        DesktopMultiWindow.invokeMethod(fromWindowId, "consoleLog", logInfo.toJson()).onError((e, t) {
+          logger.e("consoleLog error: $e");
+          ScriptManager.removeLogHandler(fromWindowId);
+        });
+      }));
 }
 
 ///打开编码窗口

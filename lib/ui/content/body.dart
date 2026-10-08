@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 import 'dart:math';
 
 import 'package:proxypin/ui/component/multi_window_compat.dart';

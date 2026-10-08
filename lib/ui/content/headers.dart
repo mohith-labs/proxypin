@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import 'package:code_forge/code_forge.dart';
 import 'package:flutter/material.dart';
+import 'package:proxypin/ui/component/code_editor/code_forge_compat.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_toastr/flutter_toastr.dart';
 import 'package:proxypin/l10n/app_localizations.dart';

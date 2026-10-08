@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import 'dart:io';
+import 'package:proxypin/utils/net_probe.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -171,10 +171,7 @@ class _ExternalProxyDialogState extends State<ExternalProxyDialog> {
   submit() async {
     bool setting = true;
     if (externalProxy.enabled) {
-      try {
-        var socket = await Socket.connect(externalProxy.host, externalProxy.port!, timeout: const Duration(seconds: 1));
-        socket.destroy();
-      } on SocketException catch (_) {
+      if (!await NetProbe.reachable(externalProxy.host, externalProxy.port!)) {
         setting = false;
         if (mounted) {
           await showDialog(

@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 import 'dart:convert';
-import 'dart:io';
+import 'package:proxypin/utils/io.dart';
 
 import 'package:proxypin/network/channel/host_port.dart';
 import 'package:proxypin/network/http/content_type.dart';
 import 'package:proxypin/network/http/http.dart';
 import 'package:proxypin/network/http/http_headers.dart';
 import 'package:proxypin/network/util/process_info.dart';
-import 'package:proxypin/ui/configuration.dart';
+import 'package:proxypin/network/util/app_version.dart';
 
 class Har {
   static int maxBodyLength = 1024 * 1024 * 4;
@@ -149,7 +149,7 @@ class Har {
     title = title.contains("ProxyPin") ? title : "[ProxyPin]$title";
     har["log"] = {
       "version": "1.2",
-      "creator": {"name": "ProxyPin", "version": AppConfiguration.version},
+      "creator": {"name": "ProxyPin", "version": appVersion},
       "pages": [
         {
           "title": title,
