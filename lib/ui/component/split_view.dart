@@ -29,18 +29,27 @@ class _VerticalSplitViewState extends State<VerticalSplitView> {
 
   //from 0-1
   late double _ratio;
+
+  /// The undamped drag position. [_ratio] is derived from this, never fed
+  /// back into it — otherwise each frame would rubber-band an already
+  /// rubber-banded value and the ratio would creep past its bounds.
+  late double _rawRatio;
+
   double _maxWidth = double.infinity;
   bool _hovering = false;
   bool _dragging = false;
 
-  get _width1 => _ratio * _maxWidth;
+  // Never allow a negative width: the Row below subtracts the divider gap,
+  // and a negative constraint is a hard layout assertion.
+  double get _width1 => (_ratio * _maxWidth - 5).clamp(0.0, double.infinity);
 
-  get _width2 => (1 - _ratio) * _maxWidth;
+  double get _width2 => ((1 - _ratio) * _maxWidth - 5).clamp(0.0, double.infinity);
 
   @override
   void initState() {
     super.initState();
     _ratio = widget.ratio;
+    _rawRatio = widget.ratio;
   }
 
   @override
@@ -56,7 +65,7 @@ class _VerticalSplitViewState extends State<VerticalSplitView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             SizedBox(
-              width: _width1 - 5,
+              width: _width1,
               child: widget.left,
             ),
             GestureDetector(
@@ -85,24 +94,41 @@ class _VerticalSplitViewState extends State<VerticalSplitView> {
                       ),
                     ),
                   )),
-              onPanStart: (_) => setState(() => _dragging = true),
+              onPanStart: (_) => setState(() {
+                _dragging = true;
+                // Re-sync: the raw position starts from wherever we settled.
+                _rawRatio = _ratio;
+              }),
               onPanEnd: (DragEndDetails details) {
-                setState(() => _dragging = false);
+                setState(() {
+                  _dragging = false;
+                  // Release snaps back inside the limits, the way an iOS
+                  // overscroll returns once you let go.
+                  _rawRatio = _rawRatio.clamp(widget.minRatio, widget.maxRatio);
+                  _ratio = _rawRatio;
+                });
                 widget.onRatioChanged?.call(_ratio);
               },
               onPanUpdate: (DragUpdateDetails details) {
                 setState(() {
-                  _ratio += details.delta.dx / _maxWidth;
+                  // Accumulate on the RAW value so damping never compounds.
+                  _rawRatio += details.delta.dx / _maxWidth;
 
                   // Rubber-band past the limits instead of stopping dead, so
                   // the boundary reads as resistance, not as a frozen UI.
-                  if (_ratio > widget.maxRatio) {
-                    final over = _ratio - widget.maxRatio;
+                  if (_rawRatio > widget.maxRatio) {
+                    final over = _rawRatio - widget.maxRatio;
                     _ratio = widget.maxRatio + rubberband(over, 1.0) * 0.25;
-                  } else if (_ratio < widget.minRatio) {
-                    final over = widget.minRatio - _ratio;
+                  } else if (_rawRatio < widget.minRatio) {
+                    final over = widget.minRatio - _rawRatio;
                     _ratio = widget.minRatio - rubberband(over, 1.0) * 0.25;
+                  } else {
+                    _ratio = _rawRatio;
                   }
+
+                  // Hard safety clamp: _width1/_width2 must stay non-negative
+                  // even if a gesture delivers an extreme delta.
+                  _ratio = _ratio.clamp(0.02, 0.98);
                 });
               },
             ),
