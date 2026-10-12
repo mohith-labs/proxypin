@@ -29,6 +29,7 @@ import 'package:proxypin/network/channel/channel_context.dart';
 import 'package:proxypin/network/http/http.dart';
 import 'package:proxypin/network/http/websocket.dart';
 import 'package:proxypin/storage/histories.dart';
+import 'package:proxypin/ui/component/liquid/liquid.dart';
 import 'package:proxypin/ui/component/memory_cleanup.dart';
 import 'package:proxypin/ui/component/widgets.dart';
 import 'package:proxypin/ui/configuration.dart';
@@ -154,19 +155,25 @@ class _DesktopHomePagePageState extends State<DesktopHomePage> implements EventL
     ];
 
     return Scaffold(
+        backgroundColor: Colors.transparent,
+        // Translucent title bar: the request list scrolls under it.
         appBar: Tab(
-            child: Container(
-          padding: EdgeInsets.only(bottom: 2.5),
-          margin: EdgeInsets.only(bottom: 5),
-          decoration: BoxDecoration(
-              // color: Theme.of(context).brightness == Brightness.dark ? null : Color(0xFFF9F9F9),
-              border: Border(
-                  bottom: BorderSide(
-                      color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
-                      width: Platform.isMacOS ? 0.2 : 0.55))),
-          child: Platform.isMacOS || Platforms.isWeb
-              ? Toolbar(proxyServer, requestListStateKey)
-              : WindowsToolbar(title: Toolbar(proxyServer, requestListStateKey)),
+            child: GlassSurface(
+          weight: GlassWeight.thick,
+          borderRadius: BorderRadius.zero,
+          elevation: 0,
+          border: false,
+          specular: false,
+          padding: const EdgeInsets.only(bottom: 2.5),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+                border: Border(
+                    bottom: BorderSide(
+                        color: GlassPalette.of(context).hairline, width: Platform.isMacOS ? 0.2 : 0.55))),
+            child: Platform.isMacOS || Platforms.isWeb
+                ? Toolbar(proxyServer, requestListStateKey)
+                : WindowsToolbar(title: Toolbar(proxyServer, requestListStateKey)),
+          ),
         )),
         body: Row(
           children: [

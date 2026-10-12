@@ -32,6 +32,7 @@ import 'package:proxypin/network/util/cache.dart';
 import 'package:proxypin/storage/favorites.dart';
 import 'package:proxypin/ui/component/multi_select_controller.dart';
 import 'package:proxypin/ui/component/multi_window.dart';
+import 'package:proxypin/ui/component/liquid/liquid.dart';
 import 'package:proxypin/ui/component/utils.dart';
 import 'package:proxypin/ui/component/widgets.dart';
 import 'package:proxypin/ui/configuration.dart';
@@ -162,7 +163,6 @@ class _RequestWidgetState extends State<RequestWidget> {
     var response = widget.response.get() ?? request.response;
     var operationName = request.graphqlOperationName;
     String path = widget.displayDomain ? request.domainPath : request.path;
-    String title = '${request.method.name} $path';
 
     var time = formatDate(request.requestTime, [HH, ':', nn, ':', ss]);
     String contentType = response?.contentType.name.toUpperCase() ?? '';
@@ -170,6 +170,11 @@ class _RequestWidgetState extends State<RequestWidget> {
 
     var requestColor = color(path);
     bool selectedInSelectionMode = widget.multiSelectController.contains(request.requestId);
+    final theme = Theme.of(context);
+    final palette = GlassPalette.of(context);
+    final isSelected = _selected || selectedInSelectionMode;
+    final statusCode = response?.status.code;
+
     return GestureDetector(
         onLongPress: () {
           if (!selectionMode) {
@@ -177,38 +182,92 @@ class _RequestWidgetState extends State<RequestWidget> {
           }
         },
         onSecondaryTapDown: (details) => contextualMenu(details),
-        child: ListTile(
-            minLeadingWidth: 5,
-            textColor: requestColor,
-            selectedColor: requestColor,
-            selectedTileColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-            leading: _leading(requestColor),
-            trailing: widget.trailing,
-            title: Text.rich(
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                TextSpan(children: [
-                  TextSpan(text: title.fixAutoLines()),
-                  if (operationName != null) graphqlOperationSpan(request, fixAutoLines: true)!,
-                ])),
-            subtitle: Container(
-                padding: const EdgeInsets.only(top: 3),
-                child: Text.rich(
-                    maxLines: 1,
-                    TextSpan(
-                      children: [
-                        TextSpan(text: '#${widget.index} ', style: const TextStyle(fontSize: 11, color: Colors.teal)),
-                        TextSpan(
-                            text:
-                                '$time - [${response?.status.code ?? ''}]  $contentType $packagesSize ${response?.costTime() ?? ''}',
-                            style: const TextStyle(fontSize: 11, color: Colors.grey))
-                      ],
-                    ))),
-            selected: _selected || selectedInSelectionMode,
-            dense: true,
-            visualDensity: const VisualDensity(vertical: -4),
-            contentPadding: EdgeInsets.only(left: selectedInSelectionMode ? 6 : 28),
-            onTap: onClick));
+        child: PressableGlass(
+          onTap: onClick,
+          pressedScale: 0.99,
+          haptics: false,
+          borderRadius: BorderRadius.circular(GlassRadius.xs),
+          child: AnimatedContainer(
+            duration: GlassDuration.fast,
+            curve: GlassCurves.standard,
+            margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+            padding: EdgeInsets.fromLTRB(selectedInSelectionMode ? 6 : 9, 7, 8, 7),
+            decoration: BoxDecoration(
+              color: isSelected ? theme.colorScheme.primary.withValues(alpha: palette.isDark ? 0.17 : 0.10) : null,
+              borderRadius: BorderRadius.circular(GlassRadius.xs),
+              border: Border.all(
+                color: isSelected ? theme.colorScheme.primary.withValues(alpha: 0.4) : Colors.transparent,
+                width: 0.8,
+              ),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Padding(padding: const EdgeInsets.only(top: 1), child: _leading(requestColor)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    GlassChip(label: request.method.name, color: _methodColor(request.method.name, theme)),
+                    const SizedBox(width: 4),
+                    if (statusCode != null) GlassChip(label: '$statusCode', color: _statusColor(statusCode)),
+                    if (contentType.isNotEmpty) ...[
+                      const SizedBox(width: 4),
+                      GlassChip(label: contentType, color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
+                    ],
+                    const Spacer(),
+                    Text('#${widget.index}',
+                        style: TextStyle(fontSize: 10, color: theme.colorScheme.onSurface.withValues(alpha: 0.33))),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text.rich(
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      TextSpan(
+                          style: TextStyle(
+                              fontSize: 13,
+                              height: 1.3,
+                              letterSpacing: -0.15,
+                              color: requestColor ?? theme.colorScheme.onSurface.withValues(alpha: 0.92)),
+                          children: [
+                            TextSpan(text: path.fixAutoLines()),
+                            if (operationName != null) graphqlOperationSpan(request, fixAutoLines: true)!,
+                          ])),
+                  const SizedBox(height: 3),
+                  Text('$time · $packagesSize${response?.costTime() ?? ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 10.5, color: theme.colorScheme.onSurface.withValues(alpha: 0.42))),
+                ]),
+              ),
+              if (widget.trailing != null) widget.trailing!,
+            ]),
+          ),
+        ));
+  }
+
+  /// Method colours: mutating verbs warm, reads cool.
+  static Color _methodColor(String method, ThemeData theme) {
+    switch (method.toUpperCase()) {
+      case 'GET':
+        return const Color(0xFF34A0A4);
+      case 'POST':
+        return const Color(0xFF3A86FF);
+      case 'PUT':
+      case 'PATCH':
+        return const Color(0xFFD9822B);
+      case 'DELETE':
+        return const Color(0xFFE5484D);
+      default:
+        return theme.colorScheme.onSurface.withValues(alpha: 0.6);
+    }
+  }
+
+  /// HTTP status colours: 2xx green, 3xx blue, 4xx amber, 5xx red.
+  static Color _statusColor(int code) {
+    if (code < 0) return const Color(0xFFE5484D);
+    if (code < 300) return const Color(0xFF2EA043);
+    if (code < 400) return const Color(0xFF3A86FF);
+    if (code < 500) return const Color(0xFFD9822B);
+    return const Color(0xFFE5484D);
   }
 
   Widget _leading(Color? requestColor) {

@@ -20,6 +20,7 @@ import 'package:proxypin/network/bin/server.dart';
 import 'package:proxypin/network/channel/channel.dart';
 import 'package:proxypin/network/channel/channel_context.dart';
 import 'package:proxypin/network/http/http.dart';
+import 'package:proxypin/ui/component/liquid/liquid.dart';
 import 'package:proxypin/ui/component/multi_select_controller.dart';
 import 'package:proxypin/ui/mobile/request/domians.dart';
 import 'package:proxypin/ui/mobile/request/request.dart';
@@ -83,9 +84,18 @@ class RequestListState extends State<RequestListWidget> {
     return DefaultTabController(
         length: tabs.length,
         child: Scaffold(
-          appBar: AppBar(
-              title: TabBar(tabs: tabs, onTap: (index) => tabClickHandles[index].call()),
-              automaticallyImplyLeading: false),
+          backgroundColor: Colors.transparent,
+          // Segmented glass control instead of a Material tab bar.
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(46),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
+              child: _GlassSegmentedTabs(
+                labels: [localizations.sequence, localizations.domainList],
+                onTap: (index) => tabClickHandles[index].call(),
+              ),
+            ),
+          ),
           body: TabBarView(
             children: [
               RequestSequence(
@@ -199,5 +209,113 @@ class DoubleClickHandle {
       handle?.call();
     }
     tabClickTime = DateTime.now().millisecondsSinceEpoch;
+  }
+}
+
+/// iOS-style segmented control driven by the ambient [TabController].
+///
+/// The selection pill springs between segments and tracks the swipe gesture
+/// continuously — dragging the page part-way moves the pill part-way, so the
+/// control stays glued to the content instead of snapping at the end.
+class _GlassSegmentedTabs extends StatefulWidget {
+  final List<String> labels;
+  final ValueChanged<int>? onTap;
+
+  const _GlassSegmentedTabs({required this.labels, this.onTap});
+
+  @override
+  State<_GlassSegmentedTabs> createState() => _GlassSegmentedTabsState();
+}
+
+class _GlassSegmentedTabsState extends State<_GlassSegmentedTabs> {
+  TabController? _controller;
+
+  void _onChange() => setState(() {});
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = DefaultTabController.of(context);
+    if (controller != _controller) {
+      _controller?.removeListener(_onChange);
+      _controller = controller..addListener(_onChange);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_onChange);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = GlassPalette.of(context);
+    final controller = _controller;
+    // animation.value tracks the swipe continuously; index only snaps.
+    final position = controller == null
+        ? 0.0
+        : (controller.animation?.value ?? controller.index.toDouble());
+    final n = widget.labels.length;
+
+    return GlassSurface(
+      weight: GlassWeight.regular,
+      borderRadius: BorderRadius.circular(GlassRadius.sm),
+      elevation: 0.5,
+      child: LayoutBuilder(builder: (context, constraints) {
+        final slot = constraints.maxWidth / n;
+        return Stack(children: [
+          AnimatedPositioned(
+            duration: Duration.zero,
+            left: slot * position.clamp(0, (n - 1).toDouble()) + 3,
+            top: 3,
+            bottom: 3,
+            width: slot - 6,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: palette.isDark ? Colors.white.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(GlassRadius.xs),
+                boxShadow: palette.shadow(elevation: 0.35),
+              ),
+            ),
+          ),
+          Row(
+            children: List.generate(n, (i) {
+              final t = (1 - (position - i).abs()).clamp(0.0, 1.0);
+              return Expanded(
+                child: PressableGlass(
+                  pressedScale: 0.95,
+                  borderRadius: BorderRadius.circular(GlassRadius.xs),
+                  onTap: () {
+                    controller?.animateTo(i,
+                        duration: GlassDuration.fast, curve: GlassCurves.standard);
+                    widget.onTap?.call(i);
+                  },
+                  child: SizedBox(
+                    height: 36,
+                    child: Center(
+                      child: Text(
+                        widget.labels[i],
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          letterSpacing: -0.2,
+                          fontWeight: FontWeight.lerp(FontWeight.w500, FontWeight.w600, t),
+                          color: Color.lerp(
+                            theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                            theme.colorScheme.onSurface,
+                            t,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ]);
+      }),
+    );
   }
 }

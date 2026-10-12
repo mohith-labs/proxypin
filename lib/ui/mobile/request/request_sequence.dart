@@ -8,6 +8,7 @@ import 'package:proxypin/l10n/app_localizations.dart';
 import 'package:proxypin/network/bin/server.dart';
 import 'package:proxypin/network/http/http.dart';
 import 'package:proxypin/network/http/http_client.dart';
+import 'package:proxypin/ui/component/liquid/liquid.dart';
 import 'package:proxypin/ui/component/multi_select_controller.dart';
 import 'package:proxypin/ui/component/selection_action_bar.dart';
 import 'package:proxypin/ui/component/utils.dart';
@@ -221,20 +222,31 @@ class RequestSequenceState extends State<RequestSequence> with AutomaticKeepAliv
       final selectionMode = selectionController.isSelectionMode;
 
       return Column(children: [
-        if (selectionMode)
-          SelectionActionBar(
-              selectionController: selectionController,
-              onRepeat: repeatSelected,
-              onExport: exportSelected,
-              onDelete: deleteSelected),
+        // Selection chrome enters and exits along the same path (downward),
+        // so it reads as one surface arriving rather than a layout jump.
+        AnimatedSize(
+          duration: GlassDuration.fast,
+          curve: GlassCurves.standard,
+          alignment: Alignment.topCenter,
+          child: selectionMode
+              ? StaggeredEntrance(
+                  index: 0,
+                  offsetY: -10,
+                  child: SelectionActionBar(
+                      selectionController: selectionController,
+                      onRepeat: repeatSelected,
+                      onExport: exportSelected,
+                      onDelete: deleteSelected),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
         Expanded(
             child: Scrollbar(
                 controller: PrimaryScrollController.maybeOf(context),
-                child: ListView.separated(
+                child: ListView.builder(
                     controller: PrimaryScrollController.maybeOf(context),
                     scrollCacheExtent: ScrollCacheExtent.viewport(2.0),
-                    separatorBuilder: (context, index) =>
-                        Divider(thickness: 0.2, height: 0, color: Theme.of(context).dividerColor),
+                    padding: const EdgeInsets.only(top: 4, bottom: 96),
                     itemCount: view.length,
                     itemBuilder: (context, index) {
                       // 安全边界检查：防止 view 数据变化时索引越界
@@ -244,7 +256,9 @@ class RequestSequenceState extends State<RequestSequence> with AutomaticKeepAliv
                       final request = view.elementAt(index);
                       final requestId = request.requestId;
 
-                      return RequestRow(
+                      return StaggeredEntrance(
+                        index: index,
+                        child: RequestRow(
                           key: ValueKey(requestId),
                           index: sortDesc ? view.length - index : index,
                           request: request,
@@ -264,7 +278,8 @@ class RequestSequenceState extends State<RequestSequence> with AutomaticKeepAliv
                             });
                             selectionController.remove(item.requestId);
                             widget.onRemove?.call([item]);
-                          });
+                          }),
+                      );
                     })))
       ]);
     });

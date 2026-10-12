@@ -16,6 +16,7 @@
 import 'package:flutter/material.dart';
 import 'package:proxypin/l10n/app_localizations.dart';
 import 'package:proxypin/network/bin/server.dart';
+import 'package:proxypin/ui/component/liquid/liquid.dart';
 import 'package:proxypin/ui/configuration.dart';
 import 'package:proxypin/ui/desktop/preference.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -68,10 +69,15 @@ class _LeftNavigationBarState extends State<LeftNavigationBar> {
             return const SizedBox();
           }
 
-          return Container(
+          // Sidebars are structural glass: heavier material, used to separate
+          // regions rather than to draw attention.
+          return GlassSurface(
+            weight: GlassWeight.structural,
+            borderRadius: BorderRadius.zero,
+            elevation: 0,
+            border: false,
+            specular: false,
             width: (localizations.localeName == 'zh' || localizations.localeName == 'zh_Hant') ? 57 : 70,
-            decoration:
-                BoxDecoration(border: Border(right: BorderSide(color: Theme.of(context).dividerColor, width: 0.2))),
             child: Column(children: <Widget>[
               SizedBox(
                 height: 320,
@@ -113,7 +119,7 @@ class _LeftNavigationBarState extends State<LeftNavigationBar> {
   Widget leftNavigation(int index) {
     return NavigationRail(
         minWidth: 57,
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: Colors.transparent,
         selectedIconTheme: IconTheme.of(context).copyWith(color: Theme.of(context).colorScheme.primary, size: 22),
         unselectedIconTheme:
             IconTheme.of(context).copyWith(color: IconTheme.of(context).color?.withValues(alpha: 0.55), size: 22),

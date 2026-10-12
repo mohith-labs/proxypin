@@ -35,6 +35,7 @@ import 'package:proxypin/network/http/websocket.dart';
 import 'package:proxypin/network/http/http_client.dart';
 import 'package:proxypin/mcp/mcp_service.dart';
 import 'package:proxypin/storage/histories.dart';
+import 'package:proxypin/ui/component/liquid/liquid.dart';
 import 'package:proxypin/ui/component/memory_cleanup.dart';
 import 'package:proxypin/ui/component/multi_select_controller.dart';
 import 'package:proxypin/ui/component/utils.dart';
@@ -213,12 +214,8 @@ class MobileHomeState extends State<MobileHomePage> implements EventListener, Li
       NavigatorPage(
           navigatorKey: toolboxNavigatorKey,
           child: Scaffold(
-              appBar: PreferredSize(
-                  preferredSize: const Size.fromHeight(42),
-                  child: AppBar(
-                      title: Text(localizations.toolbox,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w400)),
-                      centerTitle: true)),
+              backgroundColor: Colors.transparent,
+              appBar: LiquidGlassAppBar(title: Text(localizations.toolbox)),
               body: Toolbox(proxyServer: proxyServer))),
       NavigatorPage(navigatorKey: configNavigatorKey, child: ConfigPage(proxyServer: proxyServer)),
       NavigatorPage(
@@ -257,45 +254,37 @@ class MobileHomeState extends State<MobileHomePage> implements EventListener, Li
         child: ValueListenableBuilder<int>(
             valueListenable: _selectIndex,
             builder: (context, index, child) => Scaffold(
+                backgroundColor: Colors.transparent,
+                // Floating glass tab bar: content scrolls underneath it.
+                extendBody: true,
                 body: IndexedStack(index: index, children: navigationView),
                 bottomNavigationBar: widget.appConfiguration.bottomNavigation
-                    ? Container(
-                        constraints: const BoxConstraints(maxHeight: 85),
-                        // padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-                        child: ClipRRect(
-                            // borderRadius: BorderRadius.circular(16),
-                            child: Theme(
-                          data: Theme.of(context).copyWith(splashColor: Colors.transparent),
-                          child: BottomNavigationBar(
-                            type: BottomNavigationBarType.fixed,
-                            iconSize: 23,
-                            showSelectedLabels: false,
-                            showUnselectedLabels: false,
-                            selectedFontSize: 2,
-                            unselectedFontSize: 2,
-                            elevation: 0,
-                            items: [
-                              BottomNavigationBarItem(
-                                  tooltip: localizations.requests,
-                                  icon: const Icon(Icons.workspaces_outlined),
-                                  label: localizations.requests),
-                              BottomNavigationBarItem(
-                                  tooltip: localizations.toolbox,
-                                  icon: const Icon(Icons.hardware_outlined),
-                                  label: localizations.toolbox),
-                              BottomNavigationBarItem(
-                                  tooltip: localizations.config,
-                                  icon: const Icon(Icons.description_outlined),
-                                  label: localizations.config),
-                              BottomNavigationBarItem(
-                                  tooltip: localizations.setting,
-                                  icon: const Icon(Icons.settings_outlined),
-                                  label: localizations.setting),
-                            ],
-                            currentIndex: _selectIndex.value,
-                            onTap: (index) => _selectIndex.value = index,
-                          ),
-                        )))
+                    ? LiquidGlassNavBar(
+                        currentIndex: index,
+                        onTap: (i) => _selectIndex.value = i,
+                        items: [
+                          GlassNavItem(
+                              icon: Icons.swap_vert_circle_outlined,
+                              selectedIcon: Icons.swap_vert_circle,
+                              label: localizations.requests,
+                              tooltip: localizations.requests),
+                          GlassNavItem(
+                              icon: Icons.construction_outlined,
+                              selectedIcon: Icons.construction,
+                              label: localizations.toolbox,
+                              tooltip: localizations.toolbox),
+                          GlassNavItem(
+                              icon: Icons.tune_outlined,
+                              selectedIcon: Icons.tune,
+                              label: localizations.config,
+                              tooltip: localizations.config),
+                          GlassNavItem(
+                              icon: Icons.settings_outlined,
+                              selectedIcon: Icons.settings,
+                              label: localizations.setting,
+                              tooltip: localizations.setting),
+                        ],
+                      )
                     : null)));
   }
 
@@ -439,6 +428,8 @@ class RequestPageState extends State<RequestPage> {
   Widget build(BuildContext context) {
     return Stack(children: [
       Scaffold(
+        backgroundColor: Colors.transparent,
+        extendBodyBehindAppBar: false,
         appBar: _MobileAppBar(widget.appConfiguration, proxyServer, remoteDevice: remoteDevice),
         drawer: widget.appConfiguration.bottomNavigation
             ? null
@@ -464,32 +455,50 @@ class RequestPageState extends State<RequestPage> {
 
   Widget _launchActionButton() {
     var theme = Theme.of(context);
-    return Theme(
-        data: ThemeData.from(colorScheme: theme.colorScheme, textTheme: theme.textTheme, useMaterial3: true),
-        child: FloatingActionButton(
-          onPressed: null,
-          backgroundColor: theme.colorScheme.primaryContainer,
-          child: SocketLaunch(
-              proxyServer: proxyServer,
-              size: 36,
-              startup: proxyServer.configuration.startup,
-              serverLaunch: false,
-              onStart: () async {
-                String host = Platform.isAndroid ? await localIp(readCache: false) : "127.0.0.1";
-                int port = proxyServer.port;
-                if (Platform.isIOS) {
-                  await proxyServer.retryBind();
-                }
+    // Primary action: a glass capsule that glows while capture is live.
+    return ValueListenableBuilder(
+        valueListenable: SocketLaunch.startStatus,
+        builder: (context, status, _) {
+          final running = status.get() == true;
+          return PulsingGlow(
+            color: running ? Colors.redAccent : theme.colorScheme.primary,
+            active: running,
+            radius: 18,
+            child: GlassSurface(
+              weight: GlassWeight.thick,
+              borderRadius: BorderRadius.circular(GlassRadius.capsule),
+              tint: running ? Colors.redAccent : theme.colorScheme.primary,
+              elevation: 1.2,
+              width: 60,
+              height: 60,
+              alignment: Alignment.center,
+              child: Theme(
+                data: ThemeData.from(
+                    colorScheme: theme.colorScheme, textTheme: theme.textTheme, useMaterial3: true),
+                child: SocketLaunch(
+                    proxyServer: proxyServer,
+                    size: 32,
+                    startup: proxyServer.configuration.startup,
+                    serverLaunch: false,
+                    onStart: () async {
+                      String host = Platform.isAndroid ? await localIp(readCache: false) : "127.0.0.1";
+                      int port = proxyServer.port;
+                      if (Platform.isIOS) {
+                        await proxyServer.retryBind();
+                      }
 
-                if (remoteDevice.value.ipProxy == true) {
-                  host = remoteDevice.value.host!;
-                  port = remoteDevice.value.port!;
-                }
+                      if (remoteDevice.value.ipProxy == true) {
+                        host = remoteDevice.value.host!;
+                        port = remoteDevice.value.port!;
+                      }
 
-                Vpn.startVpn(host, port, proxyServer.configuration, ipProxy: remoteDevice.value.ipProxy);
-              },
-              onStop: () => Vpn.stopVpn()),
-        ));
+                      Vpn.startVpn(host, port, proxyServer.configuration, ipProxy: remoteDevice.value.ipProxy);
+                    },
+                    onStop: () => Vpn.stopVpn()),
+              ),
+            ),
+          );
+        });
   }
 
   /// 远程连接
@@ -577,21 +586,43 @@ class _MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
 
     return AppBar(
         leading: bottomNavigation ? const SizedBox() : null,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        elevation: 0,
+        toolbarHeight: 52,
+        // Glass chrome: the search field and actions float over a blurred layer.
+        flexibleSpace: const GlassSurface(
+          weight: GlassWeight.thick,
+          borderRadius: BorderRadius.zero,
+          elevation: 0,
+          border: false,
+          specular: false,
+          child: SizedBox.expand(),
+        ),
+        shape: Border(bottom: BorderSide(color: GlassPalette.of(context).hairline, width: 0.5)),
         systemOverlayStyle: Platform.isAndroid
             ? SystemUiOverlayStyle(
-                systemNavigationBarColor: ColorScheme.of(context).surface,
-                statusBarColor: ColorScheme.of(context).surface)
+                systemNavigationBarColor: Colors.transparent,
+                statusBarColor: Colors.transparent,
+                statusBarIconBrightness:
+                    Theme.of(context).brightness == Brightness.dark ? Brightness.light : Brightness.dark)
             : null,
         title: MobileSearch(
             key: MobileApp.searchStateKey, onSearch: (val) => MobileApp.requestStateKey.currentState?.search(val)),
         actions: [
-          IconButton(
-              tooltip: localizations.clear,
-              icon: const Icon(Icons.delete_outline),
-              onPressed: () => _onClear(context, localizations)),
+          PressableGlass(
+            onTap: () => _onClear(context, localizations),
+            pressedScale: 0.88,
+            borderRadius: BorderRadius.circular(GlassRadius.capsule),
+            child: Tooltip(
+              message: localizations.clear,
+              child: const Padding(padding: EdgeInsets.all(9), child: Icon(Icons.delete_outline, size: 21)),
+            ),
+          ),
           const SizedBox(width: 2),
           MoreMenu(proxyServer: proxyServer, remoteDevice: remoteDevice),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
         ]);
   }
 }

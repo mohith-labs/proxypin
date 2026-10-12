@@ -24,6 +24,7 @@ import 'package:proxypin/network/bin/configuration.dart';
 import 'package:proxypin/network/components/manager/environment_manager.dart';
 import 'package:proxypin/network/components/request_breakpoint.dart';
 import 'package:proxypin/ui/component/chinese_font.dart';
+import 'package:proxypin/ui/component/liquid/liquid.dart';
 import 'package:proxypin/ui/component/multi_window_compat.dart';
 import 'package:proxypin/ui/component/multi_window.dart';
 import 'package:proxypin/ui/configuration.dart';
@@ -122,6 +123,10 @@ class FluentApp extends StatelessWidget {
             locale: appConfiguration.language,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
+            // Liquid Glass: the backdrop the translucent surfaces refract.
+            // Every Scaffold above it is transparent, so blurred chrome always
+            // has real content behind it instead of flat grey.
+            builder: (context, child) => GlassBackdrop(child: child ?? const SizedBox()),
             home: home,
           );
         });
@@ -174,8 +179,7 @@ class FluentApp extends StatelessWidget {
       themeData = themeData.useSystemChineseFont();
     }
 
-    return themeData.copyWith(
-        dialogTheme:
-            themeData.dialogTheme.copyWith(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))));
+    // Liquid Glass: translucent materials, capsule controls, fluid page motion.
+    return LiquidGlassTheme.apply(themeData);
   }
 }

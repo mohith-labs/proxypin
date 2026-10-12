@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:proxypin/l10n/app_localizations.dart';
+import 'package:proxypin/ui/component/liquid/liquid.dart';
 import 'package:proxypin/ui/component/multi_select_controller.dart';
 import 'package:proxypin/utils/listenable_list.dart';
 
@@ -15,22 +16,35 @@ class SelectionActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
 
-    return SizedBox(
-        height: 36,
+    return GlassSurface(
+        weight: GlassWeight.thick,
+        borderRadius: BorderRadius.circular(GlassRadius.sm),
+        margin: const EdgeInsets.fromLTRB(10, 4, 10, 2),
+        height: 42,
+        elevation: 0.8,
         child: Row(children: [
           const SizedBox(width: 8),
           _SelectLabel(selectionController: selectionController),
           const Spacer(),
-          if (onRepeat != null)
-            IconButton(onPressed: onRepeat, tooltip: localizations?.repeat, icon: const Icon(Icons.repeat, size: 18)),
-          if (onExport != null)
-            IconButton(
-                onPressed: onExport, tooltip: localizations?.export, icon: const Icon(Icons.share_outlined, size: 18)),
+          if (onRepeat != null) _action(Icons.repeat, localizations?.repeat, onRepeat),
+          if (onExport != null) _action(Icons.share_outlined, localizations?.export, onExport),
           if (onDelete != null)
-            IconButton(
-                onPressed: onDelete, tooltip: localizations?.delete, icon: const Icon(Icons.delete_outline, size: 18)),
-          IconButton(onPressed: _onCancel, tooltip: localizations?.cancel, icon: const Icon(Icons.close, size: 18)),
+            _action(Icons.delete_outline, localizations?.delete, onDelete, color: const Color(0xFFE5484D)),
+          _action(Icons.close, localizations?.cancel, _onCancel),
+          const SizedBox(width: 4),
         ]));
+  }
+
+  Widget _action(IconData icon, String? tooltip, VoidCallback? onTap, {Color? color}) {
+    return PressableGlass(
+      onTap: onTap,
+      pressedScale: 0.85,
+      borderRadius: BorderRadius.circular(GlassRadius.capsule),
+      child: Tooltip(
+        message: tooltip ?? '',
+        child: Padding(padding: const EdgeInsets.all(9), child: Icon(icon, size: 19, color: color)),
+      ),
+    );
   }
 
   void _onCancel() {

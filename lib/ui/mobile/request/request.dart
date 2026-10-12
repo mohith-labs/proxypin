@@ -29,6 +29,7 @@ import 'package:proxypin/network/http/http.dart';
 import 'package:proxypin/network/http/http_client.dart';
 import 'package:proxypin/network/util/cache.dart';
 import 'package:proxypin/storage/favorites.dart';
+import 'package:proxypin/ui/component/liquid/liquid.dart';
 import 'package:proxypin/ui/component/multi_select_controller.dart';
 import 'package:proxypin/ui/component/utils.dart';
 import 'package:proxypin/ui/component/widgets.dart';
@@ -137,67 +138,180 @@ class RequestRowState extends State<RequestRow> {
   Widget build(BuildContext context) {
     String url = widget.displayDomain ? request.requestUrl : request.path;
     var operationName = request.graphqlOperationName;
-    var title = request.protocolVersion == 'MQTT' ? 'MQTT $url' : Strings.autoLineString('${request.method.name} $url');
+    final isMqtt = request.protocolVersion == 'MQTT';
+    var title = isMqtt ? 'MQTT $url' : Strings.autoLineString(url);
 
     var time = formatDate(request.requestTime, [HH, ':', nn, ':', ss]);
     var contentType = response?.contentType.name.toUpperCase() ?? '';
     var packagesSize = getPackagesSize(request, response);
 
-    var subTitle = request.protocolVersion == 'MQTT'
-        ? '$time - ${request.messages.length} packets'
-        : '$time - [${response?.status.code ?? ''}] $contentType $packagesSize ${response?.costTime() ?? ''}';
-
     var highlightColor = color(url);
+    final theme = Theme.of(context);
+    final palette = GlassPalette.of(context);
+    final isSelected =
+        selected || (widget.selectionController.isSelectionMode && widget.selectionController.contains(request.requestId));
+    final statusCode = response?.status.code;
 
-    return GestureDetector(
-        onLongPressStart: menu,
-        child: ListTile(
-          visualDensity: const VisualDensity(vertical: -4),
-          minLeadingWidth: 5,
-          selected: selected ||
-              (widget.selectionController.isSelectionMode && widget.selectionController.contains(request.requestId)),
-          textColor: highlightColor,
-          selectedColor: highlightColor,
-          leading: rowLeading(),
-          title: Text.rich(
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              TextSpan(style: const TextStyle(fontSize: 14), children: [
-                TextSpan(text: title.fixAutoLines()),
-                if (operationName != null) graphqlOperationSpan(request, fontSize: 14, fixAutoLines: true)!,
-              ])),
-          subtitle: Text.rich(
-              maxLines: 1,
-              TextSpan(children: [
-                TextSpan(text: '#${widget.index} ', style: const TextStyle(fontSize: 11, color: Colors.teal)),
-                TextSpan(text: subTitle, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              ])),
-          trailing: request.protocolVersion == 'MQTT'
-              ? const Icon(Icons.hub_outlined, color: Colors.teal)
-              : getIcon(response, color: highlightColor),
-          contentPadding:
-              Platform.isIOS ? const EdgeInsets.symmetric(horizontal: 8) : const EdgeInsets.only(left: 3, right: 5),
-          onTap: () {
-            if (widget.selectionController.isSelectionMode) {
-              widget.selectionController.toggle(request.requestId);
-              return;
-            }
+    // Subtitle: time · size · duration, with the status + type as chips above.
+    final subTitle = isMqtt
+        ? '$time · ${request.messages.length} packets'
+        : '$time · $packagesSize${response?.costTime() ?? ''}';
 
-            if (AppConfiguration.current?.autoReadEnabled == true) {
-              if (markAutoRead(request.requestId)) {
-                setState(() {});
-              }
-            }
+    return PressableGlass(
+      // Instant feedback on press-down; a glass row should feel physical.
+      pressedScale: 0.985,
+      borderRadius: BorderRadius.circular(GlassRadius.sm),
+      onLongPressStart: menu,
+      onTap: () {
+        if (widget.selectionController.isSelectionMode) {
+          widget.selectionController.toggle(request.requestId);
+          return;
+        }
 
-            Navigator.of(getContext()).push(MaterialPageRoute(builder: (context) {
-              return NetworkTabController(
-                  proxyServer: widget.proxyServer,
-                  httpRequest: request,
-                  httpResponse: response,
-                  title: Text(localizations.captureDetail, style: const TextStyle(fontSize: 16)));
-            }));
-          },
-        ));
+        if (AppConfiguration.current?.autoReadEnabled == true) {
+          if (markAutoRead(request.requestId)) {
+            setState(() {});
+          }
+        }
+
+        Navigator.of(getContext()).push(GlassPageRoute(
+            page: NetworkTabController(
+                proxyServer: widget.proxyServer,
+                httpRequest: request,
+                httpResponse: response,
+                title: Text(localizations.captureDetail, style: const TextStyle(fontSize: 16)))));
+      },
+      child: AnimatedContainer(
+        duration: GlassDuration.fast,
+        curve: GlassCurves.standard,
+        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.primary.withValues(alpha: palette.isDark ? 0.18 : 0.10)
+              : (palette.isDark ? Colors.white.withValues(alpha: 0.045) : Colors.white.withValues(alpha: 0.55)),
+          borderRadius: BorderRadius.circular(GlassRadius.sm),
+          border: Border.all(
+            color: isSelected
+                ? theme.colorScheme.primary.withValues(alpha: 0.45)
+                : palette.hairline,
+            width: isSelected ? 1.1 : 0.7,
+          ),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (widget.selectionController.isSelectionMode) ...[
+            _selectionCheckbox(),
+            const SizedBox(width: 8),
+          ],
+          if (appIcon() != null) ...[
+            SizedBox(width: 34, child: appIcon()),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // Status chips: method + response code read at a glance.
+              Row(children: [
+                GlassChip(
+                  label: isMqtt ? 'MQTT' : request.method.name,
+                  color: _methodColor(request.method.name, theme),
+                ),
+                const SizedBox(width: 5),
+                if (statusCode != null)
+                  GlassChip(label: '$statusCode', color: _statusColor(statusCode))
+                else
+                  // Still in flight — a quiet pulsing dot, not a spinner.
+                  _PendingPulse(color: theme.colorScheme.primary),
+                if (contentType.isNotEmpty) ...[
+                  const SizedBox(width: 5),
+                  GlassChip(label: contentType, color: theme.colorScheme.onSurface.withValues(alpha: 0.55)),
+                ],
+                const Spacer(),
+                Text('#${widget.index}',
+                    style: TextStyle(fontSize: 10.5, color: theme.colorScheme.onSurface.withValues(alpha: 0.35))),
+              ]),
+              const SizedBox(height: 6),
+              Text.rich(
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                TextSpan(
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.3,
+                    letterSpacing: -0.15,
+                    fontWeight: FontWeight.w500,
+                    color: highlightColor ?? theme.colorScheme.onSurface.withValues(alpha: 0.92),
+                  ),
+                  children: [
+                    TextSpan(text: title.fixAutoLines()),
+                    if (operationName != null) graphqlOperationSpan(request, fontSize: 13.5, fixAutoLines: true)!,
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  letterSpacing: 0.1,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: isMqtt
+                ? const Icon(Icons.hub_outlined, color: Colors.teal, size: 18)
+                : getIcon(response, color: highlightColor),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  /// Animated check box for multi-select mode.
+  Widget _selectionCheckbox() {
+    bool isSelected = widget.selectionController.contains(request.requestId);
+    return GlassAnimatedSwitcher(
+      axis: Axis.horizontal,
+      child: Icon(
+        isSelected ? Icons.check_circle_rounded : Icons.circle_outlined,
+        key: ValueKey(isSelected),
+        size: 21,
+        color: isSelected
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+      ),
+    );
+  }
+
+  /// Method colours: mutating verbs warm, reads cool.
+  static Color _methodColor(String method, ThemeData theme) {
+    switch (method.toUpperCase()) {
+      case 'GET':
+        return const Color(0xFF34A0A4);
+      case 'POST':
+        return const Color(0xFF3A86FF);
+      case 'PUT':
+      case 'PATCH':
+        return const Color(0xFFD9822B);
+      case 'DELETE':
+        return const Color(0xFFE5484D);
+      default:
+        return theme.colorScheme.onSurface.withValues(alpha: 0.6);
+    }
+  }
+
+  /// HTTP status colours: 2xx green, 3xx blue, 4xx amber, 5xx red.
+  static Color _statusColor(int code) {
+    if (code < 0) return const Color(0xFFE5484D);
+    if (code < 300) return const Color(0xFF2EA043);
+    if (code < 400) return const Color(0xFF3A86FF);
+    if (code < 500) return const Color(0xFFD9822B);
+    return const Color(0xFFE5484D);
   }
 
   Widget? rowLeading() {
@@ -243,7 +357,7 @@ class RequestRowState extends State<RequestRow> {
   }
 
   ///菜单
-  void menu(details) {
+  void menu(LongPressStartDetails details) {
     setState(() {
       selected = true;
     });
@@ -489,6 +603,59 @@ class RequestRowState extends State<RequestRow> {
         SizedBox(width: 130, child: Align(alignment: Alignment.centerLeft, child: left)),
         Expanded(child: Align(alignment: Alignment.centerLeft, child: right))
       ],
+    );
+  }
+}
+
+/// In-flight indicator: a slow breathing dot. Communicates "waiting" without
+/// the visual noise (or the constant repaint) of a spinner in a long list.
+class _PendingPulse extends StatefulWidget {
+  final Color color;
+
+  const _PendingPulse({required this.color});
+
+  @override
+  State<_PendingPulse> createState() => _PendingPulseState();
+}
+
+class _PendingPulseState extends State<_PendingPulse> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (GlassAccessibility.reduceMotion(context)) {
+      return GlassChip(label: '···', color: widget.color);
+    }
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final t = Curves.easeInOut.transform(_controller.value);
+        return Container(
+          width: 20,
+          height: 15,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: widget.color.withValues(alpha: 0.08 + 0.10 * t),
+            borderRadius: BorderRadius.circular(GlassRadius.xs * 0.7),
+          ),
+          child: Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: widget.color.withValues(alpha: 0.45 + 0.45 * t),
+            ),
+          ),
+        );
+      },
     );
   }
 }

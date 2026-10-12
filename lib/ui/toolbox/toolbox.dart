@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:proxypin/l10n/app_localizations.dart';
 import 'package:proxypin/network/bin/server.dart';
+import 'package:proxypin/ui/component/liquid/liquid.dart';
 import 'package:proxypin/ui/component/multi_window.dart';
 import 'package:proxypin/ui/desktop/left_menus/replay_tasks.dart' as desktop;
 import 'package:proxypin/ui/mobile/request/replay_tasks.dart';
@@ -40,14 +41,15 @@ class _ToolboxState extends State<Toolbox> {
         data: IconTheme.of(context).copyWith(color: IconTheme.of(context).color?.withValues(alpha: 0.65), size: 22),
         child: SingleChildScrollView(
             child: Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Top quick actions
               Wrap(
-                spacing: 6,
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   IconText(
                     icon: Icons.http,
@@ -95,10 +97,11 @@ class _ToolboxState extends State<Toolbox> {
                       tooltip: localizations.replayTasks),
                 ],
               ),
-              const Divider(thickness: 0.3),
-              Text(localizations.view, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 18),
+              _SectionLabel(localizations.view),
               Wrap(
-                spacing: 6,
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   IconText(
                       onTap: () async {
@@ -143,10 +146,11 @@ class _ToolboxState extends State<Toolbox> {
                       tooltip: localizations.textEditor),
                 ],
               ),
-              const Divider(thickness: 0.3),
-              Text(localizations.encode, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 18),
+              _SectionLabel(localizations.encode),
               Wrap(
-                spacing: 6,
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   IconText(
                     onTap: () => encodeWindow(EncoderType.url, context),
@@ -174,10 +178,11 @@ class _ToolboxState extends State<Toolbox> {
                   ),
                 ],
               ),
-              const Divider(thickness: 0.3),
-              Text(localizations.cipher, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 18),
+              _SectionLabel(localizations.cipher),
               Wrap(
-                spacing: 6,
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   IconText(
                     onTap: () {
@@ -193,10 +198,11 @@ class _ToolboxState extends State<Toolbox> {
                   ),
                 ],
               ),
-              const Divider(thickness: 0.3),
-              Text(localizations.other, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 18),
+              _SectionLabel(localizations.other),
               Wrap(
-                spacing: 6,
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   IconText(
                       onTap: () async {
@@ -277,28 +283,54 @@ class IconText extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final label = text;
+
+    // Each tool is its own small glass tile with spring press feedback.
     return Tooltip(
       message: tooltip ?? label,
       waitDuration: const Duration(milliseconds: 500),
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
-          hoverColor: theme.colorScheme.primary.withValues(alpha: 0.06),
-          splashColor: theme.colorScheme.primary.withValues(alpha: 0.12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            constraints: const BoxConstraints(minWidth: 92),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon),
-                const SizedBox(height: 6),
-                Text(label, style: const TextStyle(fontSize: 14)),
-              ],
-            ),
+      child: PressableGlass(
+        onTap: onTap,
+        pressedScale: 0.93,
+        borderRadius: BorderRadius.circular(GlassRadius.sm),
+        child: GlassSurface(
+          weight: GlassWeight.thin,
+          borderRadius: BorderRadius.circular(GlassRadius.sm),
+          elevation: 0.5,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          constraints: const BoxConstraints(minWidth: 96),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: theme.colorScheme.primary.withValues(alpha: 0.9)),
+              const SizedBox(height: 7),
+              Text(label,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, letterSpacing: -0.15)),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small uppercase group label — replaces the hard divider rules so the
+/// toolbox reads as grouped glass tiles rather than a ruled table.
+class _SectionLabel extends StatelessWidget {
+  final String text;
+
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 9),
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.7,
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
         ),
       ),
     );
