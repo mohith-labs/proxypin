@@ -194,8 +194,19 @@ class _WindowLayer extends StatelessWidget {
     return LayoutBuilder(builder: (context, constraints) {
       final area = constraints.biggest;
       final windows = WebWindows._order.map((id) => WebWindows._windows[id]).whereType<_WebWindow>();
+      if (windows.isEmpty) return const SizedBox.shrink();
+
       return Stack(children: [
-        for (final (index, window) in windows.indexed) _WindowFrame(key: window.key, window: window, area: area, cascade: index),
+        // Scrim: without it the page behind stays at full brightness and its
+        // sharp text competes with the window's own content. It also signals
+        // "that layer is inactive", which a floating window otherwise lacks.
+        Positioned.fill(
+          child: IgnorePointer(
+            child: ColoredBox(color: Colors.black.withValues(alpha: 0.32)),
+          ),
+        ),
+        for (final (index, window) in windows.indexed)
+          _WindowFrame(key: window.key, window: window, area: area, cascade: index),
       ]);
     });
   }
@@ -230,6 +241,13 @@ class _WindowFrameState extends State<_WindowFrame> {
     position = Offset(position.dx.clamp(0, math.max(0, area.width - width)), position.dy.clamp(0, math.max(0, area.height - 40)));
 
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    // Floating windows must be OPAQUE. They sit over dense request/header
+    // text, and a translucent fill lets sharp glyphs read straight through
+    // the panel — the backdrop out-contrasts the window's own content.
+    final surface = isDark ? const Color(0xFF1C1C20) : const Color(0xFFF7F7FA);
+    final radius = BorderRadius.circular(compact ? 0 : 12);
+
     return Positioned(
       left: position.dx,
       top: position.dy,
@@ -237,60 +255,85 @@ class _WindowFrameState extends State<_WindowFrame> {
       height: height,
       child: Listener(
         onPointerDown: (_) => WebWindows._focus(window.id),
-        child: Material(
-          elevation: 14,
-          borderRadius: BorderRadius.circular(compact ? 0 : 10),
-          clipBehavior: Clip.antiAlias,
-          color: theme.scaffoldBackgroundColor,
-          child: Column(children: [
-            GestureDetector(
-              onPanUpdate: compact
-                  ? null
-                  : (details) => WebWindows._update(window.id, (w) => w.position = position + details.delta),
-              child: Container(
-                height: 32,
-                padding: const EdgeInsets.only(left: 12),
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
-                child: Row(children: [
-                  Expanded(
-                      child: Text(window.title,
-                          maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelLarge)),
-                  IconButton(
-                    tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-                    iconSize: 16,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    icon: const Icon(Icons.close),
-                    onPressed: () => WebWindows.close(window.id),
-                  ),
-                ]),
-              ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            // A real edge + elevation, so the window boundary is unambiguous
+            // instead of dissolving into whatever is behind it.
+            border: Border.all(
+              color: isDark ? Colors.white.withValues(alpha: 0.10) : Colors.black.withValues(alpha: 0.10),
             ),
-            Expanded(
-              child: Stack(children: [
-                Positioned.fill(
-                  child: Navigator(
-                    key: window.navigatorKey,
-                    onGenerateRoute: (_) => PageRouteBuilder(pageBuilder: (_, __, ___) => _content),
-                  ),
-                ),
-                if (!compact)
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: GestureDetector(
-                      onPanUpdate: (details) => WebWindows._update(
-                          window.id,
-                          (w) => w.size = Size(math.max(360, width + details.delta.dx), math.max(240, height + details.delta.dy))),
-                      child: const MouseRegion(
-                        cursor: SystemMouseCursors.resizeDownRight,
-                        child: SizedBox(width: 16, height: 16, child: Icon(Icons.south_east, size: 12)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.55 : 0.22),
+                blurRadius: 32,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Material(
+            elevation: 0,
+            borderRadius: radius,
+            clipBehavior: Clip.antiAlias,
+            color: surface,
+            child: Column(children: [
+              GestureDetector(
+                onPanUpdate: compact
+                    ? null
+                    : (details) => WebWindows._update(window.id, (w) => w.position = position + details.delta),
+                child: Container(
+                  height: 32,
+                  padding: const EdgeInsets.only(left: 12),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.035),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.07),
                       ),
                     ),
                   ),
-              ]),
-            ),
-          ]),
+                  child: Row(children: [
+                    Expanded(
+                        child: Text(window.title,
+                            maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelLarge)),
+                    IconButton(
+                      tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                      iconSize: 16,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      icon: const Icon(Icons.close),
+                      onPressed: () => WebWindows.close(window.id),
+                    ),
+                  ]),
+                ),
+              ),
+              Expanded(
+                child: Stack(children: [
+                  Positioned.fill(
+                    child: Navigator(
+                      key: window.navigatorKey,
+                      onGenerateRoute: (_) => PageRouteBuilder(pageBuilder: (_, __, ___) => _content),
+                    ),
+                  ),
+                  if (!compact)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: GestureDetector(
+                        onPanUpdate: (details) => WebWindows._update(
+                            window.id,
+                            (w) => w.size =
+                                Size(math.max(360, width + details.delta.dx), math.max(240, height + details.delta.dy))),
+                        child: const MouseRegion(
+                          cursor: SystemMouseCursors.resizeDownRight,
+                          child: SizedBox(width: 16, height: 16, child: Icon(Icons.south_east, size: 12)),
+                        ),
+                      ),
+                    ),
+                ]),
+              ),
+            ]),
+          ),
         ),
       ),
     );

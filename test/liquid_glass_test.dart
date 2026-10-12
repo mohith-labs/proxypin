@@ -364,6 +364,36 @@ void main() {
       expect(themed.bottomSheetTheme.backgroundColor, isNot(Colors.transparent));
     });
 
+    test('every floating surface is fully opaque with a visible edge', () {
+      for (final brightness in [Brightness.light, Brightness.dark]) {
+        final themed = LiquidGlassTheme.apply(ThemeData(
+          brightness: brightness,
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.pink, brightness: brightness),
+        ));
+
+        // Popups sit over dense request/header text. Any translucency lets
+        // sharp glyphs read straight through, and because the backdrop is
+        // high-contrast it out-shouts the popup's own content.
+        final surfaces = <String, Color?>{
+          'dialog': themed.dialogTheme.backgroundColor,
+          'popupMenu': themed.popupMenuTheme.color,
+          'bottomSheet': themed.bottomSheetTheme.backgroundColor,
+          'drawer': themed.drawerTheme.backgroundColor,
+        };
+
+        for (final entry in surfaces.entries) {
+          expect(entry.value, isNotNull, reason: '${entry.key} has no background ($brightness)');
+          expect(entry.value!.a, 1.0,
+              reason: '${entry.key} must be fully opaque, not translucent ($brightness)');
+        }
+
+        // Without elevation the boundary dissolves into whatever is behind it.
+        expect(themed.dialogTheme.elevation, greaterThan(0));
+        expect(themed.popupMenuTheme.elevation, greaterThan(0));
+      }
+    });
+
     test('type tracking tightens as text grows', () {
       final t = LiquidGlassTheme.textTheme(ThemeData().textTheme);
 

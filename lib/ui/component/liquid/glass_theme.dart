@@ -102,21 +102,26 @@ class LiquidGlassTheme {
         margin: EdgeInsets.zero,
       ),
       dialogTheme: theme.dialogTheme.copyWith(
-        backgroundColor: isDark
-            ? const Color(0xFF1C1C20).withValues(alpha: 0.94)
-            : Colors.white.withValues(alpha: 0.92),
+        // Opaque, not translucent. These float over dense header/JSON text,
+        // and at 0.92 alpha the sharp glyphs behind read straight through —
+        // the backdrop ends up out-contrasting the dialog's own content.
+        backgroundColor: isDark ? const Color(0xFF1C1C20) : const Color(0xFFF7F7FA),
         surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GlassRadius.lg)),
+        elevation: 24,
+        shadowColor: Colors.black.withValues(alpha: isDark ? 0.6 : 0.26),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(GlassRadius.lg),
+          side: BorderSide(
+            color: isDark ? Colors.white.withValues(alpha: 0.10) : Colors.black.withValues(alpha: 0.08),
+          ),
+        ),
         titleTextStyle: textTheme(theme.textTheme).titleMedium?.copyWith(fontSize: 17),
       ),
       bottomSheetTheme: theme.bottomSheetTheme.copyWith(
         // NOT transparent: the ~12 existing `showModalBottomSheet` call sites
         // supply no background of their own and would render see-through.
         // `showGlassSheet` opts out explicitly for the full glass treatment.
-        backgroundColor: isDark
-            ? const Color(0xFF1B1B1E).withValues(alpha: 0.96)
-            : Colors.white.withValues(alpha: 0.96),
+        backgroundColor: isDark ? const Color(0xFF1B1B1E) : Colors.white,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         modalElevation: 0,
@@ -125,17 +130,57 @@ class LiquidGlassTheme {
         ),
       ),
       popupMenuTheme: theme.popupMenuTheme.copyWith(
-        color: isDark ? const Color(0xFF1F1F23).withValues(alpha: 0.95) : Colors.white.withValues(alpha: 0.95),
+        // Opaque: menu items are short strings that lose badly against dense
+        // text showing through from behind.
+        color: isDark ? const Color(0xFF232327) : Colors.white,
         surfaceTintColor: Colors.transparent,
-        elevation: 0,
+        elevation: 16,
+        shadowColor: Colors.black.withValues(alpha: isDark ? 0.6 : 0.24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(GlassRadius.md),
-          side: BorderSide(color: palette.hairline),
+          side: BorderSide(
+            color: isDark ? Colors.white.withValues(alpha: 0.10) : Colors.black.withValues(alpha: 0.08),
+          ),
         ),
+      ),
+      // Dropdowns (`DropdownButton`, `DropdownMenu`) paint from menuTheme in
+      // Material 3; without this they fall back to a translucent surface.
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(isDark ? const Color(0xFF232327) : Colors.white),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          elevation: const WidgetStatePropertyAll(16),
+          shadowColor: WidgetStatePropertyAll(Colors.black.withValues(alpha: isDark ? 0.6 : 0.24)),
+          shape: WidgetStatePropertyAll(RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(GlassRadius.md),
+            side: BorderSide(
+              color: isDark ? Colors.white.withValues(alpha: 0.10) : Colors.black.withValues(alpha: 0.08),
+            ),
+          )),
+        ),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(isDark ? const Color(0xFF232327) : Colors.white),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          elevation: const WidgetStatePropertyAll(16),
+          shape: WidgetStatePropertyAll(RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(GlassRadius.md),
+            side: BorderSide(
+              color: isDark ? Colors.white.withValues(alpha: 0.10) : Colors.black.withValues(alpha: 0.08),
+            ),
+          )),
+        ),
+      ),
+      // Drawers and the Material-2 dropdown surface also paint from here.
+      drawerTheme: theme.drawerTheme.copyWith(
+        backgroundColor: isDark ? const Color(0xFF1C1C20) : const Color(0xFFF7F7FA),
+        surfaceTintColor: Colors.transparent,
+        scrimColor: Colors.black.withValues(alpha: 0.4),
       ),
       tooltipTheme: theme.tooltipTheme.copyWith(
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF2A2A2F).withValues(alpha: 0.95) : const Color(0xFF32323A).withValues(alpha: 0.92),
+          color: isDark ? const Color(0xFF2E2E34) : const Color(0xFF2B2B33),
           borderRadius: BorderRadius.circular(GlassRadius.xs),
         ),
         textStyle: const TextStyle(fontSize: 12, color: Colors.white),

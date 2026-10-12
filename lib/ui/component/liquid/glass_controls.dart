@@ -319,6 +319,11 @@ class GlassChip extends StatelessWidget {
   final double fontSize;
   final EdgeInsetsGeometry padding;
 
+  /// Solid chip instead of a tinted outline. Used to separate two chips that
+  /// sit side by side (the method vs. the status code) so they cannot be
+  /// mistaken for each other when their hues happen to match.
+  final bool filled;
+
   const GlassChip({
     super.key,
     required this.label,
@@ -326,6 +331,7 @@ class GlassChip extends StatelessWidget {
     this.icon,
     this.fontSize = 10.5,
     this.padding = const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+    this.filled = false,
   });
 
   @override
@@ -333,16 +339,29 @@ class GlassChip extends StatelessWidget {
     final palette = GlassPalette.of(context);
     final c = color ?? Theme.of(context).colorScheme.primary;
 
+    // Small bold text on a dark ground needs a brighter face than the same
+    // hue used for a fill, or saturated reds fall under the AA threshold.
+    final Color labelColor = filled
+        ? Colors.white
+        : palette.isDark
+            ? Color.lerp(c, Colors.white, 0.35)!
+            : Color.lerp(c, Colors.black, 0.25)!;
+
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: c.withValues(alpha: palette.isDark ? 0.20 : 0.12),
+        color: filled
+            ? (palette.isDark ? Color.lerp(c, Colors.black, 0.18)! : c)
+            : c.withValues(alpha: palette.isDark ? 0.20 : 0.12),
         borderRadius: BorderRadius.circular(GlassRadius.xs * 0.7),
-        border: Border.all(color: c.withValues(alpha: palette.isDark ? 0.34 : 0.22), width: 0.7),
+        border: Border.all(
+          color: filled ? Colors.transparent : c.withValues(alpha: palette.isDark ? 0.34 : 0.22),
+          width: 0.7,
+        ),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         if (icon != null) ...[
-          Icon(icon, size: fontSize + 2, color: c),
+          Icon(icon, size: fontSize + 2, color: labelColor),
           const SizedBox(width: 3),
         ],
         Text(
@@ -351,7 +370,7 @@ class GlassChip extends StatelessWidget {
             fontSize: fontSize,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.3, // small text wants slightly positive tracking
-            color: palette.isDark ? c.withValues(alpha: 0.95) : Color.lerp(c, Colors.black, 0.25),
+            color: labelColor,
           ),
         ),
       ]),

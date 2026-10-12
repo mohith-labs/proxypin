@@ -217,7 +217,9 @@ class RequestRowState extends State<RequestRow> {
                 ),
                 const SizedBox(width: 5),
                 if (statusCode != null)
-                  GlassChip(label: '$statusCode', color: _statusColor(statusCode))
+                  // Filled, so it never reads as a twin of the method chip
+                  // even when both resolve to the same hue (GET + 200).
+                  GlassChip(label: '$statusCode', color: _statusColor(statusCode), filled: true)
                 else
                   // Still in flight — a quiet pulsing dot, not a spinner.
                   _PendingPulse(color: theme.colorScheme.primary),

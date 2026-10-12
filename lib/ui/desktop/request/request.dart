@@ -208,7 +208,8 @@ class _RequestWidgetState extends State<RequestWidget> {
                   Row(children: [
                     GlassChip(label: request.method.name, color: _methodColor(request.method.name, theme)),
                     const SizedBox(width: 4),
-                    if (statusCode != null) GlassChip(label: '$statusCode', color: _statusColor(statusCode)),
+                    if (statusCode != null)
+                      GlassChip(label: '$statusCode', color: _statusColor(statusCode), filled: true),
                     if (contentType.isNotEmpty) ...[
                       const SizedBox(width: 4),
                       GlassChip(label: contentType, color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
