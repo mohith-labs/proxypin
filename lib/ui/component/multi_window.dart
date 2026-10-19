@@ -45,6 +45,7 @@ import '../desktop/setting/request_breakpoint.dart';
 import '../desktop/setting/request_crypto.dart';
 import '../desktop/setting/request_map.dart';
 import '../desktop/setting/reverse_proxy.dart';
+import '../desktop/setting/users.dart';
 import '../toolbox/cert_hash.dart';
 import '../toolbox/encoder.dart';
 import '../toolbox/js_run.dart';
@@ -168,6 +169,10 @@ Widget multiWindow(String windowId, Map<dynamic, dynamic> argument) {
 
   if (argument['name'] == 'ReverseProxyPage') {
     return ReverseProxyPage(windowId: windowId);
+  }
+
+  if (argument['name'] == 'UsersPage') {
+    return UsersPage(windowId: windowId);
   }
 
   if (argument['name'] == 'BreakpointExecutor') {

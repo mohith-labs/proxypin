@@ -38,20 +38,58 @@ class WebServerStatus extends StatelessWidget {
           },
         ),
       ),
-      if (WebEnvironment.authRequired) ...[
-        const SizedBox(width: 4),
-        IconButton(
-            tooltip: '${localizations.webSignOut} (${WebEnvironment.user ?? ''})',
-            icon: const Icon(Icons.logout, size: 19),
-            onPressed: () async {
-              try {
-                await ApiClient.postJson('logout');
-              } finally {
-                web.window.location.reload();
-              }
-            }),
+      if (WebEnvironment.currentUser != null) ...[
+        const SizedBox(width: 6),
+        _account(context, localizations.webSignOut),
       ],
     ]);
+  }
+
+  /// The signed-in account: avatar, and a menu to sign out.
+  static Widget _account(BuildContext context, String signOutLabel) {
+    final picture = WebEnvironment.userPicture;
+    final name = WebEnvironment.userName ?? '';
+    return MenuAnchor(
+      menuChildren: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            Text(WebEnvironment.userEmail ?? '', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            if (WebEnvironment.isAdmin)
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Text('Administrator', style: TextStyle(fontSize: 11, color: Colors.blue)),
+              ),
+          ]),
+        ),
+        const Divider(height: 8),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.logout, size: 18),
+          child: Text(signOutLabel, style: const TextStyle(fontSize: 13)),
+          onPressed: () async {
+            try {
+              await ApiClient.postJson('logout');
+            } finally {
+              web.window.location.reload();
+            }
+          },
+        ),
+      ],
+      builder: (context, controller, child) => InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => controller.isOpen ? controller.close() : controller.open(),
+        child: Tooltip(
+          message: WebEnvironment.userEmail ?? '',
+          child: CircleAvatar(
+            radius: 13,
+            foregroundImage: picture == null ? null : NetworkImage(picture),
+            child: Text(name.isEmpty ? '?' : name.characters.first.toUpperCase(),
+                style: const TextStyle(fontSize: 12)),
+          ),
+        ),
+      ),
+    );
   }
 
   static Widget _chip(BuildContext context, IconData icon, String text, Color color) {

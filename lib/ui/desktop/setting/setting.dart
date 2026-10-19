@@ -31,9 +31,11 @@ import 'package:proxypin/ui/desktop/setting/hosts.dart';
 import 'package:proxypin/ui/desktop/setting/request_block.dart';
 import 'package:proxypin/ui/desktop/setting/weak_network.dart';
 import 'package:proxypin/ui/desktop/toolbar/mcp_panel.dart';
+import 'package:proxypin/web/web_environment.dart';
 
 import 'filter.dart';
 import 'reverse_proxy.dart';
+import 'users.dart';
 
 ///设置菜单
 /// @author wanghongen
@@ -79,6 +81,8 @@ class _SettingState extends State<Setting> {
           item(localizations.reverseProxy, onPressed: () => openReverseProxyWindow(context))
         else
           _ProxyMenu(proxyServer: widget.proxyServer),
+        // user administration exists only on the multi-user web server, for its administrator
+        if (Platforms.isWeb && WebEnvironment.isAdmin) item('Users', onPressed: () => openUsersWindow(context)),
         item(localizations.domainFilter, onPressed: hostFilter),
         item(localizations.hosts, onPressed: hosts),
         item(localizations.requestBlock, onPressed: showRequestBlock),

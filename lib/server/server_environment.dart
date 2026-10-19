@@ -11,7 +11,9 @@ import 'dart:io';
 /// | `PROXYPIN_WEB_DIR` | `<home>/build/web`, else `<home>/web` | compiled Flutter web UI |
 /// | `PROXYPIN_NODE` | `node` | Node.js binary used to run scripts |
 /// | `PROXYPIN_SCRIPT_WORKER` | `<home>/server/js/script_worker.mjs` | script worker |
-/// | `PROXYPIN_USER` / `PROXYPIN_PASSWORD` | admin / unset | UI login; auth is off while the password is unset |
+/// | `PROXYPIN_GOOGLE_CLIENT_ID` / `PROXYPIN_GOOGLE_CLIENT_SECRET` | unset | Google OAuth client; sign-in is disabled while unset |
+/// | `PROXYPIN_ADMIN_EMAIL` | unset | comma-separated admin addresses (console settings, user approval) |
+/// | `PROXYPIN_PUBLIC_URL` | derived from the request | external base URL, used to build the OAuth callback |
 /// | `PROXYPIN_BREAKPOINT_TIMEOUT` | 600 | seconds a breakpoint may stay paused |
 /// | `PROXYPIN_HISTORY_LIMIT` | 2000 | captured requests kept in memory for the UI |
 class ServerEnvironment {
@@ -71,11 +73,32 @@ class ServerEnvironment {
 
   static String get scriptWorker => _value('PROXYPIN_SCRIPT_WORKER') ?? '$home/server/js/script_worker.mjs';
 
-  static String get username => _value('PROXYPIN_USER') ?? 'admin';
+  // ----------------------------------------------------------------------------------- Google sign-in
 
-  static String? get password => _value('PROXYPIN_PASSWORD');
+  static String? get googleClientId => _value('PROXYPIN_GOOGLE_CLIENT_ID');
 
-  static bool get authEnabled => password != null;
+  static String? get googleClientSecret => _value('PROXYPIN_GOOGLE_CLIENT_SECRET');
+
+  static bool get googleConfigured => googleClientId != null && googleClientSecret != null;
+
+  /// External base URL of the console (`https://proxypin.example.com`), without a trailing slash.
+  /// When unset, the callback URL is derived from the request's Host/X-Forwarded-* headers.
+  static String? get publicUrl {
+    final value = _value('PROXYPIN_PUBLIC_URL');
+    if (value == null) return null;
+    return value.endsWith('/') ? value.substring(0, value.length - 1) : value;
+  }
+
+  /// Accounts that administer the console. Supports several addresses, comma or space separated.
+  static List<String> get adminEmails =>
+      (_value('PROXYPIN_ADMIN_EMAIL') ?? '').split(RegExp(r'[,\s]+')).map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toList();
+
+  static bool isAdminEmail(String? email) =>
+      email != null && email.isNotEmpty && adminEmails.contains(email.toLowerCase());
+
+  /// Per-user data directory (`<dataDir>/users/<key>`), where that user's favorites and history live.
+  static String userDataDir(String storageKey) =>
+      '$dataDir${Platform.pathSeparator}users${Platform.pathSeparator}$storageKey';
 
   static Duration get breakpointTimeout =>
       Duration(seconds: int.tryParse(_value('PROXYPIN_BREAKPOINT_TIMEOUT') ?? '') ?? 600);

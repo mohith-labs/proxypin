@@ -30,7 +30,8 @@ Future<void> _run(List<String> args) async {
 
   if (args.contains('--help') || args.contains('-h')) {
     stdout.writeln('ProxyPin web server ${ServerEnvironment.uiPrefix}/ — configure with environment variables:\n'
-        '  PORT (8080), PROXYPIN_BIND, PROXYPIN_DATA_DIR, PROXYPIN_WEB_DIR, PROXYPIN_USER, PROXYPIN_PASSWORD,\n'
+        '  PORT (8080), PROXYPIN_BIND, PROXYPIN_DATA_DIR, PROXYPIN_WEB_DIR,\n'
+        '  PROXYPIN_GOOGLE_CLIENT_ID, PROXYPIN_GOOGLE_CLIENT_SECRET, PROXYPIN_ADMIN_EMAIL, PROXYPIN_PUBLIC_URL,\n'
         '  PROXYPIN_NODE, PROXYPIN_SCRIPT_WORKER, PROXYPIN_BREAKPOINT_TIMEOUT, PROXYPIN_HISTORY_LIMIT, PROXYPIN_LOG_LEVEL');
     return;
   }
@@ -43,8 +44,12 @@ Future<void> _run(List<String> args) async {
     exit(1);
   }
 
-  if (!ServerEnvironment.authEnabled) {
-    logger.w('UI authentication is off; set PROXYPIN_PASSWORD to require a login');
+  if (!ServerEnvironment.googleConfigured) {
+    logger.w('Google sign-in is not configured: set PROXYPIN_GOOGLE_CLIENT_ID and PROXYPIN_GOOGLE_CLIENT_SECRET. '
+        'Nobody can sign in to the UI until you do.');
+  }
+  if (ServerEnvironment.adminEmails.isEmpty) {
+    logger.w('No administrator configured: set PROXYPIN_ADMIN_EMAIL to manage users and access rules');
   }
 
   // docker stop sends SIGTERM; Ctrl+C sends SIGINT

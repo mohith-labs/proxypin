@@ -33,8 +33,12 @@ Future<void> runWebApp() async {
     return;
   }
 
-  if (session['authRequired'] == true && session['authenticated'] != true) {
-    runApp(_LoginApp(user: session['user']?.toString()));
+  if (session['authenticated'] != true) {
+    runApp(_LoginApp(
+      signInUrl: session['signInUrl']?.toString() ?? '/__proxypin/auth/google/start',
+      googleConfigured: session['googleConfigured'] == true,
+      adminConfigured: session['adminConfigured'] == true,
+    ));
     return;
   }
 
@@ -65,37 +69,12 @@ Future<void> _start() async {
   runApp(FluentApp(DesktopHomePage(configuration, appConfiguration, proxyServer: server), appConfiguration));
 }
 
-class _LoginApp extends StatefulWidget {
-  final String? user;
+class _LoginApp extends StatelessWidget {
+  final String signInUrl;
+  final bool googleConfigured;
+  final bool adminConfigured;
 
-  const _LoginApp({this.user});
-
-  @override
-  State<_LoginApp> createState() => _LoginAppState();
-}
-
-class _LoginAppState extends State<_LoginApp> {
-  late final TextEditingController _user = TextEditingController(text: widget.user ?? 'admin');
-  final TextEditingController _password = TextEditingController();
-  String? _error;
-  bool _busy = false;
-
-  Future<void> _login() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await ApiClient.postJson('login', json: {'username': _user.text, 'password': _password.text});
-      web.window.location.reload();
-    } on ApiException catch (e) {
-      setState(() => _error = e.message);
-    } catch (e) {
-      setState(() => _error = '$e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
+  const _LoginApp({required this.signInUrl, required this.googleConfigured, required this.adminConfigured});
 
   @override
   Widget build(BuildContext context) {
@@ -113,44 +92,117 @@ class _LoginAppState extends State<_LoginApp> {
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
+          constraints: const BoxConstraints(maxWidth: 380),
           child: Card(
             child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: AutofillGroup(
-                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Text('ProxyPin', style: theme.textTheme.headlineSmall, textAlign: TextAlign.center),
-                  const SizedBox(height: 4),
-                  Text('Sign in to the web console', textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: _user,
-                    autofillHints: const [AutofillHints.username],
-                    decoration: const InputDecoration(labelText: 'Username', border: OutlineInputBorder()),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _password,
-                    obscureText: true,
-                    autofocus: true,
-                    autofillHints: const [AutofillHints.password],
-                    decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder()),
-                    onSubmitted: (_) => _login(),
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 12),
-                    Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
-                  ],
-                  const SizedBox(height: 20),
-                  FilledButton(onPressed: _busy ? null : _login, child: const Text('Sign in')),
-                ]),
-              ),
+              padding: const EdgeInsets.all(28),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text('ProxyPin', style: theme.textTheme.headlineSmall, textAlign: TextAlign.center),
+                const SizedBox(height: 6),
+                Text('Sign in to the web console',
+                    textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
+                const SizedBox(height: 28),
+                if (googleConfigured)
+                  _GoogleButton(onPressed: () => web.window.location.href = signInUrl)
+                else
+                  _notice(
+                      theme,
+                      'Google sign-in is not configured on this server. Set PROXYPIN_GOOGLE_CLIENT_ID and '
+                      'PROXYPIN_GOOGLE_CLIENT_SECRET, then restart it.'),
+                if (googleConfigured && !adminConfigured) ...[
+                  const SizedBox(height: 18),
+                  _notice(theme, 'No administrator is configured: set PROXYPIN_ADMIN_EMAIL to manage users.'),
+                ],
+              ]),
             ),
           ),
         ),
       ),
     );
   }
+
+  static Widget _notice(ThemeData theme, String text) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.errorContainer.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(text, style: theme.textTheme.bodySmall, textAlign: TextAlign.center),
+      );
+}
+
+/// "Sign in with Google" button, following Google's branding guidance closely enough to be recognisable.
+class _GoogleButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _GoogleButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        backgroundColor: dark ? const Color(0xFF131314) : Colors.white,
+        foregroundColor: dark ? const Color(0xFFE3E3E3) : const Color(0xFF1F1F1F),
+        side: BorderSide(color: dark ? const Color(0xFF8E918F) : const Color(0xFFDADCE0)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+        const _GoogleLogo(size: 18),
+        const SizedBox(width: 12),
+        const Text('Sign in with Google', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+      ]),
+    );
+  }
+}
+
+/// The Google "G", drawn so the UI needs no bundled image asset.
+class _GoogleLogo extends StatelessWidget {
+  final double size;
+
+  const _GoogleLogo({required this.size});
+
+  @override
+  Widget build(BuildContext context) =>
+      SizedBox.square(dimension: size, child: CustomPaint(painter: _GoogleLogoPainter()));
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+    final center = Offset(s / 2, s / 2);
+    final stroke = s * 0.22;
+    final radius = (s - stroke) / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.butt;
+
+    // four brand-coloured arcs, starting at the right-hand gap of the G
+    const segments = <List<double>>[
+      [-0.30, 1.10], // blue   (right/top)
+      [0.80, 1.35], // green  (bottom right)
+      [2.15, 1.25], // yellow (bottom left)
+      [3.40, 1.40], // red    (top left)
+    ];
+    const colors = [Color(0xFF4285F4), Color(0xFF34A853), Color(0xFFFBBC05), Color(0xFFEA4335)];
+    for (var i = 0; i < segments.length; i++) {
+      canvas.drawArc(rect, segments[i][0], segments[i][1], false, paint..color = colors[i]);
+    }
+
+    // the horizontal bar of the G
+    canvas.drawRect(
+      Rect.fromLTRB(center.dx, center.dy - stroke / 2, s - stroke * 0.1, center.dy + stroke / 2),
+      Paint()..color = const Color(0xFF4285F4),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _MessageApp extends StatelessWidget {

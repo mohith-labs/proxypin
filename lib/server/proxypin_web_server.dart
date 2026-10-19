@@ -27,6 +27,8 @@ import 'package:proxypin/utils/listenable_list.dart';
 
 import 'admin/admin_auth.dart';
 import 'admin/admin_handler.dart';
+import 'auth/auth_store.dart';
+import 'auth/google_oauth.dart';
 import 'breakpoint_broker.dart';
 import 'capture/capture_hub.dart';
 import 'config_reloader.dart';
@@ -41,16 +43,22 @@ class ProxyPinWebServer {
   late final BreakpointBroker breakpoints;
   late final ConfigReloader reloader;
   late final List<Interceptor> interceptors;
-  final AdminAuth auth = AdminAuth();
+  late final AuthStore authStore;
+  late final AdminAuth auth;
+  final GoogleOAuth oauth = GoogleOAuth();
   final DateTime startedAt = DateTime.now();
 
   ReverseProxyServer? _frontDoor;
   Server? _internalProxy;
   Configuration? _internalConfiguration;
-  HistoryTask? _historyTask;
+
+  /// One recorder per user: "save session" writes into that account's own directory.
+  final Map<String, HistoryTask> _historyTasks = {};
   int? internalProxyPort;
 
   Future<void> start() async {
+    authStore = await AuthStore.instance;
+    auth = AdminAuth(authStore);
     configuration = await Configuration.instance;
     hub = CaptureHub(limit: ServerEnvironment.historyLimit);
     breakpoints = BreakpointBroker(hub);
@@ -60,7 +68,6 @@ class ProxyPinWebServer {
     await _loadManagers();
     ScriptManager.registerLogHandler(LogHandler(
         channelId: 'web', handle: (log) => hub.broadcast({'type': 'scriptLog', 'log': log.toJson()})));
-    (await HistoryStorage.instance).addListener(OnchangeListEvent<HistoryItem>(_historyChanged));
 
     interceptors = [
       Hosts(),
@@ -76,7 +83,6 @@ class ProxyPinWebServer {
       ..sort((a, b) => a.priority.compareTo(b.priority));
 
     await _startInternalProxy();
-    _startHistory();
 
     final admin = AdminHandler(this);
     final frontDoor = ReverseProxyServer(configuration, listener: hub);
@@ -130,22 +136,27 @@ class ProxyPinWebServer {
         ..externalProxy = configuration.externalProxy
         ..enabledHttp2 = configuration.enabledHttp2;
     }
-    _startHistory();
   }
 
   // ------------------------------------------------------------------------------------------------- history
 
-  /// Records the capture session into history automatically when "history cache time" is set (the desktop
-  /// semantics), or from now on after the UI pressed "save session".
-  void _startHistory() {
-    final task = _historyTask ??= HistoryTask.ensureInstance(configuration, hub.container);
-    if (configuration.historyCacheTime != 0) {
-      hub.container.addListener(task);
-    }
+  /// The recorder of one user, writing into `<dataDir>/users/<id>/history`.
+  ///
+  /// Capture is shared (one proxy engine), but a saved session belongs to the person who pressed
+  /// "save session", so every user gets their own task and their own history list.
+  Future<HistoryTask> _historyTaskOf(AppUser user) async {
+    final existing = _historyTasks[user.id];
+    if (existing != null) return existing;
+
+    final root = ServerEnvironment.userDataDir(user.storageKey);
+    final storage = await HistoryStorage.forRoot(root);
+    storage.addListener(OnchangeListEvent<HistoryItem>(_historyChanged));
+    return _historyTasks[user.id] = HistoryTask(configuration, hub.container, storage: storage);
   }
 
-  Future<void> recordHistory() async {
-    final task = _historyTask ??= HistoryTask.ensureInstance(configuration, hub.container);
+  /// "Save session" from [user]'s browser: record the running capture into their history.
+  Future<void> recordHistory(AppUser user) async {
+    final task = await _historyTaskOf(user);
     hub.container.addListener(task);
     await task.startTask();
   }

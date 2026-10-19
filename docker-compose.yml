@@ -9,9 +9,14 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # Uncomment to require a login for the UI/API:
-      # PROXYPIN_USER: admin
-      # PROXYPIN_PASSWORD: change-me
+      # Google sign-in (required: nobody can sign in to the UI until these are set).
+      # Redirect URI to register: https://<your-domain>/__proxypin/auth/google/callback
+      PROXYPIN_GOOGLE_CLIENT_ID: "${PROXYPIN_GOOGLE_CLIENT_ID:-}"
+      PROXYPIN_GOOGLE_CLIENT_SECRET: "${PROXYPIN_GOOGLE_CLIENT_SECRET:-}"
+      # Administrator(s): may approve/block users and change the access rules.
+      PROXYPIN_ADMIN_EMAIL: "${PROXYPIN_ADMIN_EMAIL:-}"
+      # External base URL; required behind a TLS-terminating reverse proxy.
+      PROXYPIN_PUBLIC_URL: "${PROXYPIN_PUBLIC_URL:-}"
       PROXYPIN_HISTORY_LIMIT: "2000"
     volumes:
       - proxypin-data:/data

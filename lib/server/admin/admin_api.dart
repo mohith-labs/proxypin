@@ -9,6 +9,8 @@ import 'package:proxypin/network/util/compress.dart';
 import 'package:proxypin/network/util/logger.dart';
 import 'package:proxypin/remote/wire.dart';
 import 'package:proxypin/server/admin/admin_http.dart';
+import 'package:proxypin/server/auth/auth_store.dart';
+import 'package:proxypin/server/auth/user_paths.dart';
 import 'package:proxypin/server/script/node_script_runtime.dart';
 import 'package:proxypin/server/server_environment.dart';
 
@@ -21,13 +23,17 @@ class AdminApi {
 
   AdminApi(this.server);
 
-  /// [path] is relative to `/__proxypin/api/` (e.g. `fs/read`).
-  Future<http.HttpResponse> handle(http.HttpRequest request, String path, Map<String, String> query) async {
+  /// [path] is relative to `/__proxypin/api/` (e.g. `fs/read`). [user] is the signed-in account: it decides
+  /// which data directory the file endpoints see, and whether the admin endpoints are allowed.
+  Future<http.HttpResponse> handle(
+      http.HttpRequest request, String path, Map<String, String> query, AppUser user) async {
     final method = request.method;
     try {
+      if (path.startsWith('admin/')) return await _admin(request, path.substring(6), user);
+
       switch (path) {
         case 'info':
-          return AdminHttp.json(info());
+          return AdminHttp.json(info(user));
         case 'capture':
           final enabled = AdminHttp.jsonBody(request)['enabled'] != false;
           server.setCapturing(enabled);
@@ -49,17 +55,17 @@ class AdminApi {
         case 'decode/br': // package:brotli does not work in the browser build
           return AdminHttp.bytes(200, brDecode(request.body ?? const []));
         case 'history/record':
-          await server.recordHistory();
+          await server.recordHistory(user);
           return AdminHttp.json({'ok': true});
         case 'net/probe':
           return AdminHttp.json(await _probe(AdminHttp.jsonBody(request)));
       }
 
-      if (path.startsWith('fs/')) return await _fileSystem(method, path.substring(3), query, request);
+      if (path.startsWith('fs/')) return await _fileSystem(method, path.substring(3), query, request, user);
       return AdminHttp.error(404, 'unknown endpoint $path');
     } on FormatException catch (e) {
       return AdminHttp.error(400, e.message);
-    } on _Forbidden catch (e) {
+    } on ForbiddenPath catch (e) {
       return AdminHttp.error(403, e.message);
     } catch (e, t) {
       logger.e('admin api $path failed', error: e, stackTrace: t);
@@ -67,7 +73,7 @@ class AdminApi {
     }
   }
 
-  Map<String, dynamic> info() => {
+  Map<String, dynamic> info([AppUser? user]) => {
         'version': appVersion,
         'dataDir': ServerEnvironment.dataDir,
         'port': ServerEnvironment.port,
@@ -76,8 +82,9 @@ class AdminApi {
         'pathSeparator': Platform.pathSeparator,
         'os': Platform.operatingSystem,
         'internalProxyPort': server.internalProxyPort,
-        'authRequired': server.auth.enabled,
-        'user': server.auth.enabled ? ServerEnvironment.username : null,
+        'authRequired': true,
+        'user': user?.toPublicJson(),
+        'isAdmin': user?.isAdmin == true,
         'startedAt': server.startedAt.millisecondsSinceEpoch,
       };
 
@@ -127,11 +134,70 @@ class AdminApi {
     }
   }
 
+  // --------------------------------------------------------------------------------------------- admin
+
+  /// `/__proxypin/api/admin/*`: user administration, restricted to the accounts in PROXYPIN_ADMIN_EMAIL.
+  Future<http.HttpResponse> _admin(http.HttpRequest request, String action, AppUser user) async {
+    if (!user.isAdmin) return AdminHttp.error(403, 'administrator access required');
+    final store = await AuthStore.instance;
+
+    switch (action) {
+      case 'users':
+        return AdminHttp.json({
+          'users': store.users.map((e) => e.toPublicJson()).toList(),
+          'settings': store.settings.toJson(),
+          'adminEmails': ServerEnvironment.adminEmails,
+        });
+
+      case 'settings':
+        final body = AdminHttp.jsonBody(request);
+        final settings = store.settings;
+        if (body.containsKey('allowSignup')) settings.allowSignup = body['allowSignup'] == true;
+        if (body.containsKey('domainMode')) settings.domainMode = domainModeFrom(body['domainMode']?.toString());
+        if (body.containsKey('domains')) {
+          settings.domains = ((body['domains'] as List?) ?? const [])
+              .map((e) => AuthSettings.normalizeDomain(e.toString()))
+              .where((e) => e.isNotEmpty)
+              .toSet()
+              .toList();
+        }
+        await store.updateSettings(settings);
+        return AdminHttp.json({'settings': settings.toJson()});
+
+      case 'user/status':
+        final body = AdminHttp.jsonBody(request);
+        final target = store.byId(body['id']?.toString());
+        if (target == null) return AdminHttp.error(404, 'unknown user');
+        if (target.isAdmin) return AdminHttp.error(403, 'the administrator account cannot be changed');
+
+        final status = userStatusFrom(body['status']?.toString());
+        await store.setStatus(target, status);
+        // a blocked (or un-approved) user must lose access right away, not when their cookie expires
+        if (status != UserStatus.approved) server.auth.revokeSessionsOf(target.id);
+        return AdminHttp.json({'user': target.toPublicJson()});
+
+      case 'user/delete':
+        final body = AdminHttp.jsonBody(request);
+        final target = store.byId(body['id']?.toString());
+        if (target == null) return AdminHttp.error(404, 'unknown user');
+        if (target.isAdmin) return AdminHttp.error(403, 'the administrator account cannot be removed');
+
+        server.auth.revokeSessionsOf(target.id);
+        await store.remove(target.id);
+        if (body['deleteData'] == true) {
+          final dir = Directory(ServerEnvironment.userDataDir(target.storageKey));
+          if (await dir.exists()) await dir.delete(recursive: true);
+        }
+        return AdminHttp.json({'ok': true});
+    }
+    return AdminHttp.error(404, 'unknown admin endpoint $action');
+  }
+
   // ---------------------------------------------------------------------------------------------- file system
 
-  Future<http.HttpResponse> _fileSystem(
-      http.HttpMethod method, String action, Map<String, String> query, http.HttpRequest request) async {
-    final path = _confine(query['path']);
+  Future<http.HttpResponse> _fileSystem(http.HttpMethod method, String action, Map<String, String> query,
+      http.HttpRequest request, AppUser user) async {
+    final path = _confine(query['path'], user);
     final source = request.headers.get('X-ProxyPin-Client');
     void changed(String path) => server.reloader.changed(path, source: source);
     switch (action) {
@@ -178,7 +244,7 @@ class AdminApi {
         return AdminHttp.json({'ok': true});
       case 'rename':
       case 'copy':
-        final target = _confine(query['to']);
+        final target = _confine(query['to'], user);
         await Directory(File(target).parent.path).create(recursive: true);
         if (action == 'rename') {
           await FileSystemEntity.type(path) == FileSystemEntityType.directory
@@ -211,22 +277,6 @@ class AdminApi {
     };
   }
 
-  /// Only paths inside the data directory are reachable.
-  static String _confine(String? path) {
-    if (path == null || path.isEmpty) throw const FormatException('missing path');
-    final root = Directory(ServerEnvironment.dataDir).absolute.uri.normalizePath().toFilePath();
-    final rootNoSlash = root.endsWith('/') ? root.substring(0, root.length - 1) : root;
-    final resolved = File(path.startsWith('/') ? path : '$rootNoSlash/$path').absolute.uri.normalizePath().toFilePath();
-    final normalized = resolved.endsWith('/') && resolved.length > 1 ? resolved.substring(0, resolved.length - 1) : resolved;
-    if (normalized != rootNoSlash && !normalized.startsWith('$rootNoSlash/')) {
-      throw _Forbidden('path outside the data directory: $path');
-    }
-    return normalized;
-  }
-}
-
-class _Forbidden implements Exception {
-  final String message;
-
-  _Forbidden(this.message);
+  /// Resolves a path from the UI into the signed-in user's own files (see [UserPaths]).
+  static String _confine(String? path, AppUser user) => UserPaths.confine(path, user);
 }

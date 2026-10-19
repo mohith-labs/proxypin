@@ -28,9 +28,9 @@ toolbar) and add a rule.
 
 - Data (rules, scripts, history, favorites, uploaded files, the generated CA) lives in the `/data` volume,
   so it survives restarts and upgrades.
-- To require a login, set `PROXYPIN_PASSWORD` (and optionally `PROXYPIN_USER`, which defaults to `admin`).
-  The login protects the UI and its API. The reverse-proxied paths stay open, because they are the service
-  you are proxying.
+- Sign-in is **Google only**: set `PROXYPIN_GOOGLE_CLIENT_ID`, `PROXYPIN_GOOGLE_CLIENT_SECRET` and
+  `PROXYPIN_ADMIN_EMAIL`. The login protects the UI and its API. The reverse-proxied paths stay open,
+  because they are the service you are proxying. See [Accounts and access](#accounts-and-access).
 - To expose ProxyPin only on this machine, use `-p 127.0.0.1:8080:8080`.
 - The image runs as the non-root `node` user, uses `tini` as PID 1, and has a health check
   (`/__proxypin/api/session`).
@@ -100,6 +100,48 @@ traffic (and so the SSL/certificate menu), Wi-Fi/QR device pairing, desktop app 
 The browser cannot open raw sockets, so connectivity checks (for example of an External Proxy) are run
 from the server.
 
+## Accounts and access
+
+Everybody signs in with Google; there is no password login. Each person's **favorites, saved history
+sessions and UI preferences are private** to their account, stored under `<data>/users/<google-id>/`.
+The proxy engine itself is shared — one server captures one traffic stream — so reverse-proxy rules,
+rewrites, request maps, scripts, hosts and breakpoints are common to everyone signed in.
+
+### Setting it up
+
+1. In the [Google Cloud console](https://console.cloud.google.com/apis/credentials) create an
+   **OAuth client ID** of type *Web application*.
+2. Add the callback as an **Authorized redirect URI**:
+   `https://<your-domain>/__proxypin/auth/google/callback`
+3. Run the server with:
+
+```yaml
+PROXYPIN_GOOGLE_CLIENT_ID: "<client-id>.apps.googleusercontent.com"
+PROXYPIN_GOOGLE_CLIENT_SECRET: "<client-secret>"
+PROXYPIN_ADMIN_EMAIL: "you@example.com"     # comma-separated for several admins
+PROXYPIN_PUBLIC_URL: "https://<your-domain>"  # needed behind a reverse proxy / TLS terminator
+```
+
+`PROXYPIN_PUBLIC_URL` must match the redirect URI you registered. Without it the callback URL is
+derived from the request's `Host` / `X-Forwarded-*` headers, which is right for plain local runs but
+wrong whenever a proxy rewrites them.
+
+### The admin settings (Settings → Users)
+
+The accounts in `PROXYPIN_ADMIN_EMAIL` get a **Users** entry in the settings menu. The admin is defined
+by the environment only, so it can never be blocked or removed from the UI, and is always allowed in
+even when the rules below would refuse it.
+
+| Setting | What it does |
+|---|---|
+| **Allow sign-up** | On: a new Google account gets access immediately. Off: it is parked in the **Requests** list until the admin approves or denies it. |
+| **Block / allow users** | Each user can be blocked (sessions are dropped at once, not when the cookie expires), unblocked, or removed — optionally with their stored data. |
+| **Email domains** | *Off*: any domain. *Allow list*: only the listed domains may sign in. *Block list*: the listed domains may not. A rule like `tricog.com` also matches `mail.tricog.com`. |
+
+Domain and sign-up rules are applied when an account signs in for the **first time**; afterwards the
+account's own state (approved / blocked) governs it, so tightening the rules does not silently evict
+people who are already approved — block or remove them instead.
+
 ## Configuration
 
 | Variable | Default | Meaning |
@@ -107,7 +149,9 @@ from the server.
 | `PORT` / `PROXYPIN_PORT` | `8080` | Listen port for the UI and the reverse proxy |
 | `PROXYPIN_BIND` | `0.0.0.0` | Listen address |
 | `PROXYPIN_DATA_DIR` | `/data` (image), `./data` (source) | Rules, scripts, history, favorites, uploaded files, CA |
-| `PROXYPIN_USER` / `PROXYPIN_PASSWORD` | `admin` / unset | UI login. Auth is off while the password is unset or empty. |
+| `PROXYPIN_GOOGLE_CLIENT_ID` / `PROXYPIN_GOOGLE_CLIENT_SECRET` | unset | Google OAuth client. Nobody can sign in until both are set. |
+| `PROXYPIN_ADMIN_EMAIL` | unset | Administrator address(es), comma-separated |
+| `PROXYPIN_PUBLIC_URL` | derived from the request | External base URL, used to build the OAuth callback |
 | `PROXYPIN_HISTORY_LIMIT` | `2000` | Captured requests kept in memory for the UI |
 | `PROXYPIN_BREAKPOINT_TIMEOUT` | `600` | Seconds a breakpoint may stay paused |
 | `PROXYPIN_LOG_LEVEL` | `info` | `debug` for verbose logs |
@@ -120,8 +164,12 @@ UI sessions last 7 days (sliding) and are kept in memory, so you sign in again a
 
 ## Security notes
 
-- Anyone who can reach the port can use the reverse proxy and, without `PROXYPIN_PASSWORD`, the UI.
-  The UI can run scripts on the server and read and write files in the data directory.
+- Anyone who can reach the port can use the reverse proxy. The UI requires a Google sign-in, but every
+  signed-in user can run scripts on the server and read and write the shared files in the data
+  directory, so only admit people you trust with the host. Personal files (favorites, saved history,
+  UI preferences) are per-account; the engine's rules and scripts are shared.
+- Captured traffic is shared: one server captures one traffic stream, and everyone signed in sees the
+  same live requests. Use separate instances if different users must not see each other's traffic.
 - Captured traffic can contain credentials and personal data. It is kept in memory and in saved
   history/favorites under `/data`.
 - The data directory also holds the generated CA private key (used when ProxyPin itself sends HTTPS

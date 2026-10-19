@@ -32,12 +32,21 @@ import 'package:proxypin/utils/listenable_list.dart';
 ///@Author WangHongEn
 class HistoryStorage {
   static HistoryStorage? _instance;
+
+  /// One storage per data root, so a multi-user server can keep every account's sessions apart.
+  static final Map<String, HistoryStorage> _byRoot = {};
   final File _storageFile;
+
+  /// Data root of this storage; null means the shared application directory.
+  final String? _root;
   static final StreamController<HistoryItem> _remoteImportedController = StreamController<HistoryItem>.broadcast();
 
-  HistoryStorage._internal(this._storageFile);
+  HistoryStorage._internal(this._storageFile, [this._root]);
 
-  static final ListenableList<HistoryItem> _histories = ListenableList();
+  static final ListenableList<HistoryItem> _sharedHistories = ListenableList();
+
+  /// Each storage owns its list; the shared instance keeps the original static list.
+  late final ListenableList<HistoryItem> _histories = _root == null ? _sharedHistories : ListenableList();
 
   ///单例
   static Future<HistoryStorage> get instance async {
@@ -47,6 +56,18 @@ class HistoryStorage {
       await _instance!._init();
     }
     return _instance!;
+  }
+
+  /// Storage rooted at [root] (`<dataDir>/users/<id>`), used by the server to separate users' sessions.
+  static Future<HistoryStorage> forRoot(String root) async {
+    final cached = _byRoot[root];
+    if (cached != null) return cached;
+
+    final file = File('$root${Platform.pathSeparator}histories.json');
+    if (!await file.exists()) await file.create(recursive: true);
+    final storage = HistoryStorage._internal(file, root);
+    await storage._init();
+    return _byRoot[root] = storage;
   }
 
   //初始化
@@ -67,8 +88,8 @@ class HistoryStorage {
     }
   }
 
-  static Future<String> _homePath() async {
-    return '${await Paths.homePath()}${Platform.pathSeparator}history';
+  Future<String> _homePath() async {
+    return '${_root ?? await Paths.homePath()}${Platform.pathSeparator}history';
   }
 
   /// 获取历史记录
@@ -89,7 +110,7 @@ class HistoryStorage {
   }
 
   ///打开文件
-  static Future<File> openFile(String name) async {
+  Future<File> openFile(String name) async {
     final homePath = await _homePath();
     var file = File('$homePath${Platform.pathSeparator}$name');
     return file.create(recursive: true);
@@ -187,7 +208,7 @@ class HistoryStorage {
   Future<HistoryItem> addRequests(Iterable<HttpRequest> requests,
       {String? name, bool notifyRemoteImported = false}) async {
     final list = requests.toList();
-    final historyFile = await HistoryStorage.openFile("${DateTime.now().millisecondsSinceEpoch}.txt");
+    final historyFile = await openFile("${DateTime.now().millisecondsSinceEpoch}.txt");
     final open = await historyFile.open(mode: FileMode.append);
     try {
       for (var request in list) {
@@ -245,7 +266,13 @@ class HistoryTask extends ListenerListEvent<HttpRequest> {
   final Configuration configuration;
   final ListenableList<HttpRequest> sourceList;
 
-  HistoryTask(this.configuration, this.sourceList) {
+  /// Where this task records. Null uses the shared storage (desktop/mobile); the multi-user server passes
+  /// the signed-in user's storage so sessions land in that account's directory.
+  final HistoryStorage? storage;
+
+  Future<HistoryStorage> get _storage async => storage ?? await HistoryStorage.instance;
+
+  HistoryTask(this.configuration, this.sourceList, {this.storage}) {
     logger.d("start history task");
     if (configuration.historyCacheTime != 0) {
       sourceList.addListener(this);
@@ -266,7 +293,7 @@ class HistoryTask extends ListenerListEvent<HttpRequest> {
       return;
     }
     var overdueTime = DateTime.now().subtract(Duration(days: configuration.historyCacheTime));
-    var historyStorage = await HistoryStorage.instance;
+    var historyStorage = await _storage;
     var histories = historyStorage.histories;
     for (int i = 0; i < histories.length; i++) {
       if (histories.elementAt(i).createTime.isBefore(overdueTime)) {
@@ -322,9 +349,9 @@ class HistoryTask extends ListenerListEvent<HttpRequest> {
     if (history != null || locked) return;
     locked = true;
 
-    HistoryStorage storage = await HistoryStorage.instance;
+    HistoryStorage storage = await _storage;
     var name = formatDate(DateTime.now(), [mm, '-', d, ' ', HH, ':', nn, ':', ss]);
-    File file = await HistoryStorage.openFile("${DateTime.now().millisecondsSinceEpoch}.txt");
+    File file = await storage.openFile("${DateTime.now().millisecondsSinceEpoch}.txt");
     history = await storage.addHistory(name, file, 0);
     writeList.clear();
     writeList.addAll(sourceList.source);
@@ -354,7 +381,7 @@ class HistoryTask extends ListenerListEvent<HttpRequest> {
     if (!changed) return;
     history!.fileSize = await open!.length();
     history!.requests = null;
-    var historyStorage = await HistoryStorage.instance;
+    var historyStorage = await _storage;
     var index = historyStorage.getIndex(history!);
     if (index < 0) {
       // histories.json was reloaded: follow the entry for our file, or stop if it was deleted
