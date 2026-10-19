@@ -66,6 +66,35 @@ class AdminHandler {
     return true;
   }
 
+  /// Mints a session without Google, for end-to-end tests (PROXYPIN_TEST_LOGIN=1).
+  ///
+  /// This bypasses authentication, so it exists only when the variable is set AND the server listens on
+  /// loopback; the account still goes through the normal signup/domain rules, so what the tests exercise is
+  /// the real authorization path.
+  Future<HttpResponse> _testLogin(HttpRequest request) async {
+    if (!ServerEnvironment.testLoginEnabled) return AdminHttp.error(404, 'not found');
+    if (!ServerEnvironment.boundToLoopback) {
+      return AdminHttp.error(403, 'PROXYPIN_TEST_LOGIN only works when the server is bound to loopback');
+    }
+
+    final body = AdminHttp.jsonBody(request);
+    final email = body['email']?.toString().trim().toLowerCase() ?? '';
+    if (email.isEmpty) return AdminHttp.error(400, 'email required');
+
+    final result = await server.authStore.signIn(
+      subject: 'test-${base64Url.encode(utf8.encode(email)).replaceAll('=', '')}',
+      email: email,
+      name: body['name']?.toString() ?? email,
+      picture: '',
+    );
+    final user = result.user;
+    if (user == null) return AdminHttp.error(403, result.error ?? 'not allowed');
+
+    final cookie = server.auth.login(user);
+    final token = cookie.split(';').first.split('=').last;
+    return AdminHttp.json({'token': token, 'user': user.toPublicJson()});
+  }
+
   // -------------------------------------------------------------------------------------- Google sign-in
 
   /// The redirect URI handed to Google. It must be identical when starting the flow and when exchanging the
@@ -163,6 +192,10 @@ class AdminHandler {
       await _write(channelContext, channel, request, response);
       return;
     }
+    if (path == 'test/login') {
+      await _write(channelContext, channel, request, await _testLogin(request));
+      return;
+    }
 
     final user = server.auth.currentUser(request);
     if (user == null) {
@@ -205,17 +238,22 @@ class AdminHandler {
       if (message.contains('"ping"')) socket.sendText('{"type":"pong"}');
     };
 
-    socket.sendJson({'type': 'hello', 'info': api.info(server.auth.currentUser(request))});
+    final viewer = server.auth.currentUser(request);
+    final userId = viewer?.id ?? '';
+    final isAdmin = viewer?.isAdmin == true;
+
+    socket.sendJson({'type': 'hello', 'info': api.info(viewer)});
     for (final event in server.breakpoints.pendingEvents) {
       socket.sendJson(event);
     }
-    final snapshot = server.hub.snapshot();
+    // only the traffic this user's own routes carried (admins see everything)
+    final snapshot = server.hub.snapshot(userId: userId, isAdmin: isAdmin);
     for (var i = 0; i < snapshot.length; i += _snapshotChunk) {
       final end = i + _snapshotChunk < snapshot.length ? i + _snapshotChunk : snapshot.length;
       socket.sendText(jsonEncode({'type': 'snapshot', 'items': snapshot.sublist(i, end)}));
     }
     socket.sendJson({'type': 'ready'});
-    server.hub.subscribe(subscriber);
+    server.hub.subscribe(subscriber, userId: userId, isAdmin: isAdmin);
   }
 
   static Future<void> _write(ChannelContext channelContext, Channel channel, HttpRequest request, HttpResponse response) async {

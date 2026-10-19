@@ -14,6 +14,11 @@ class ReverseProxyRule {
   /// Path prefix matched on segment boundaries (`/api` matches `/api` and `/api/x`, not `/apix`). `/` matches all.
   String path;
 
+  /// Id of the user who created this rule; empty for rules made before ownership existed (treated as the
+  /// admin's, see [ReverseProxyManager.visibleTo]). Only the owner and an admin may see, edit or delete it,
+  /// and only they see the traffic it carries.
+  String ownerId;
+
   /// Absolute http(s) URL, optionally with a base path (`https://example.com/v2`).
   String target;
 
@@ -33,6 +38,7 @@ class ReverseProxyRule {
     this.stripPrefix = true,
     this.preserveHost = false,
     this.rewriteResponse = true,
+    this.ownerId = '',
   }) : path = normalizePath(path);
 
   factory ReverseProxyRule.fromJson(Map<String, dynamic> json) {
@@ -44,6 +50,7 @@ class ReverseProxyRule {
       stripPrefix: json['stripPrefix'] ?? true,
       preserveHost: json['preserveHost'] ?? false,
       rewriteResponse: json['rewriteResponse'] ?? true,
+      ownerId: json['ownerId'] ?? '',
     );
   }
 
@@ -55,6 +62,7 @@ class ReverseProxyRule {
         'stripPrefix': stripPrefix,
         'preserveHost': preserveHost,
         'rewriteResponse': rewriteResponse,
+        if (ownerId.isNotEmpty) 'ownerId': ownerId,
       };
 
   /// `"proxy/"` -> `"/proxy"`, `""` -> `"/"`.

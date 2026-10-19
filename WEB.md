@@ -35,6 +35,14 @@ toolbar) and add a rule.
 - The image runs as the non-root `node` user, uses `tini` as PID 1, and has a health check
   (`/__proxypin/api/session`).
 
+## Traffic retention
+
+**Settings → Users → Traffic retention** (administrators) decides how long captured traffic is kept:
+every day, week or month, or a custom number of hours. The window is a rolling one: each sweep removes
+exchanges **older than** the period, so "every week" keeps the last seven days rather than emptying
+everything every seventh day. The sweep runs when the setting changes and then hourly; **Clear old
+traffic now** runs it immediately. "Keep everything" turns it off.
+
 ## Reverse proxy rules
 
 | Field | Meaning |
@@ -47,6 +55,30 @@ toolbar) and add a rule.
 
 - When several rules match, the longest path wins. A rule can be switched off individually, and all
   rules can be switched off with the page's main switch.
+
+### Who owns a route
+
+Each route belongs to the account that created it, and the console shows you only your own:
+
+- Only the owner and an administrator may see, edit or delete a route.
+- **Only the owner and an administrator see the traffic it carries.** Traffic that matches no route, or a
+  route created before ownership existed, is shown to administrators only.
+- Two routes may not claim overlapping paths, across all users: `/a` collides with `/a` and with `/a/b`,
+  but not with `/ab` or `/b`. The attempt is refused with the path that is in the way.
+- Administrators may edit anyone's route; doing so does not change who owns it.
+- **Clear traffic** removes only your own exchanges; an administrator's clears everything.
+
+Ownership is enforced on the server. The console sends the whole rules file when it saves, so the server
+merges that write into the routes you cannot see rather than letting it overwrite them.
+
+### Your own path prefix
+
+**Settings → My path prefix** sets an optional prefix for everything you create: with `/user1`, asking for
+`/path` produces `/user1/path`. It lets several people use the same route name without colliding, since
+`/user1/test` and `/user2/test` are different paths.
+
+Changing the prefix moves the routes you already own, so they keep working relative to the new prefix and
+only the public URL changes. The move is refused if it would collide with somebody else's route.
 - If no rule matches, the server answers 404 with a short help page that lists the configured paths. These
   requests are not captured: browsers and extensions send plenty of them to the console's own origin.
   `GET /` redirects to the UI unless a rule covers `/`.

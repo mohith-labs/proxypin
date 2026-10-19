@@ -110,6 +110,8 @@ class ReverseProxyChannelHandler extends HttpProxyChannelHandler {
       'name': rule.name,
       'path': rule.path,
       'target': rule.target,
+      // who may see this exchange in the console; empty means admin-only (see CaptureHub)
+      'ownerId': rule.ownerId,
       'clientUri': pathAndQuery,
       if (clientHost != null) 'clientHost': clientHost,
       'clientScheme': websocket ? (secure ? 'wss' : 'ws') : (secure ? 'https' : 'http'),

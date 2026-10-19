@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_toastr/flutter_toastr.dart';
@@ -7,6 +9,7 @@ import 'package:proxypin/network/components/reverse_proxy/reverse_proxy_rule.dar
 import 'package:proxypin/ui/component/multi_window.dart';
 import 'package:proxypin/ui/component/utils.dart';
 import 'package:proxypin/utils/platform.dart';
+import 'package:proxypin/web/web_environment.dart';
 
 /// Reverse-proxy routes of the ProxyPin web server: `<origin><path>` is forwarded to the rule's target.
 class ReverseProxyPage extends StatefulWidget {
@@ -21,6 +24,9 @@ class ReverseProxyPage extends StatefulWidget {
 class _ReverseProxyPageState extends State<ReverseProxyPage> {
   ReverseProxyManager? manager;
 
+  /// The signed-in user's common prefix (web only); new paths are created under it.
+  String pathPrefix = WebEnvironment.pathPrefix;
+
   AppLocalizations get localizations => AppLocalizations.of(context)!;
 
   /// Base URL clients use for this server (the page is served from it).
@@ -34,13 +40,28 @@ class _ReverseProxyPageState extends State<ReverseProxyPage> {
     });
   }
 
+  /// Persists the rules; on rejection (e.g. a path another user already owns) the server's reason is shown and
+  /// the on-disk state is reloaded so the list never drifts from what was actually saved.
   Future<void> _save() async {
     try {
       await manager!.flushConfig();
     } catch (e) {
-      if (mounted) FlutterToastr.show('${localizations.fail}: $e', context, duration: 3);
+      if (mounted) FlutterToastr.show(_reason(e), context, duration: 4);
+      await manager!.reload();
     }
     if (mounted) setState(() {});
+  }
+
+  /// The server's message without the transport noise around it.
+  static String _reason(Object error) {
+    final text = error.toString();
+    final match = RegExp(r'HTTP \d+ (.+)\$', dotAll: true).firstMatch(text);
+    final body = match?.group(1)?.trim() ?? text;
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['error'] != null) return decoded['error'].toString();
+    } catch (_) {}
+    return body;
   }
 
   @override
@@ -166,6 +187,7 @@ class _ReverseProxyPageState extends State<ReverseProxyPage> {
         context: context,
         builder: (_) => _RuleDialog(
             rule: existing?.copy(),
+            pathPrefix: pathPrefix,
             otherPaths: [
               for (final (i, rule) in manager.rules.indexed)
                 if (i != index) rule.path
@@ -180,11 +202,21 @@ class _ReverseProxyPageState extends State<ReverseProxyPage> {
   }
 }
 
+/// Joins a user's common prefix with the path they typed (`/user1` + `/path` -> `/user1/path`).
+String _withPrefix(String prefix, String path) {
+  if (prefix.isEmpty) return path;
+  if (path == '/') return prefix;
+  return '$prefix$path';
+}
+
 class _RuleDialog extends StatefulWidget {
   final ReverseProxyRule? rule;
   final List<String> otherPaths;
 
-  const _RuleDialog({this.rule, required this.otherPaths});
+  /// The signed-in user's common prefix; new paths are created under it (shown as a prefix in the field).
+  final String pathPrefix;
+
+  const _RuleDialog({this.rule, required this.otherPaths, this.pathPrefix = ''});
 
   @override
   State<_RuleDialog> createState() => _RuleDialogState();
@@ -242,7 +274,12 @@ class _RuleDialogState extends State<_RuleDialog> {
             const SizedBox(height: 10),
             TextFormField(
               controller: path,
-              decoration: InputDecoration(labelText: localizations.reverseProxyPath, hintText: '/api', isDense: true),
+              decoration: InputDecoration(
+                  labelText: localizations.reverseProxyPath,
+                  hintText: '/api',
+                  isDense: true,
+                  // a prefixed user types the path relative to their own prefix
+                  prefixText: widget.rule == null && widget.pathPrefix.isNotEmpty ? widget.pathPrefix : null),
               validator: (value) {
                 final text = value?.trim() ?? '';
                 if (!text.startsWith('/')) return localizations.reverseProxyInvalidPath;
@@ -250,7 +287,13 @@ class _RuleDialogState extends State<_RuleDialog> {
                 if (normalized == '/__proxypin' || normalized.startsWith('/__proxypin/')) {
                   return localizations.reverseProxyReservedPath;
                 }
-                if (widget.otherPaths.contains(normalized)) return localizations.reverseProxyDuplicatePath;
+                final full = widget.pathPrefix.isEmpty || widget.rule != null
+                    ? normalized
+                    : _withPrefix(widget.pathPrefix, normalized);
+                // the server has the final say (it also sees other users' routes), this is just quick feedback
+                for (final other in widget.otherPaths) {
+                  if (ReverseProxyManager.pathsOverlap(full, other)) return localizations.reverseProxyDuplicatePath;
+                }
                 return null;
               },
             ),

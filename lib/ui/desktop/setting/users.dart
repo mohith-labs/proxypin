@@ -135,6 +135,8 @@ class _UsersPageState extends State<UsersPage> {
               : ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 24), children: [
                   _accessCard(),
                   const SizedBox(height: 16),
+                  _retentionCard(),
+                  const SizedBox(height: 16),
                   if (pending.isNotEmpty) ...[
                     _sectionTitle('Requests', badge: pending.length),
                     const SizedBox(height: 6),
@@ -164,6 +166,118 @@ class _UsersPageState extends State<UsersPage> {
           ),
         ],
       ]);
+
+  // ------------------------------------------------------------------------------------- traffic retention
+
+  /// Preset retention windows; `custom` opens a free-form hours field.
+  static const Map<String, int> _retentionPresets = {
+    'Keep everything': 0,
+    'Every day': 24,
+    'Every week': 24 * 7,
+    'Every month': 24 * 30,
+  };
+
+  int get _retentionHours => (_settings['retentionHours'] as num?)?.toInt() ?? 0;
+
+  Widget _retentionCard() {
+    final hours = _retentionHours;
+    final isPreset = _retentionPresets.containsValue(hours);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Traffic retention', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Text(
+              hours == 0
+                  ? 'Captured traffic is kept until the server restarts or somebody clears it.'
+                  : 'Captured traffic older than ${_describe(hours)} is removed automatically.',
+              style: const TextStyle(fontSize: 12)),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final entry in _retentionPresets.entries)
+              ChoiceChip(
+                label: Text(entry.key, style: const TextStyle(fontSize: 12)),
+                selected: hours == entry.value,
+                onSelected: (_) => _saveSettings({'retentionHours': entry.value}),
+              ),
+            ChoiceChip(
+              label: Text(isPreset ? 'Custom' : 'Custom (${_describe(hours)})',
+                  style: const TextStyle(fontSize: 12)),
+              selected: !isPreset,
+              onSelected: (_) => _askCustomRetention(),
+            ),
+          ]),
+          if (hours > 0) ...[
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(
+                child: Text('The sweep also runs now, and then hourly.',
+                    style: TextStyle(fontSize: 11, color: Theme.of(context).hintColor)),
+              ),
+              TextButton.icon(
+                onPressed: _sweepNow,
+                icon: const Icon(Icons.cleaning_services_outlined, size: 16),
+                label: const Text('Clear old traffic now', style: TextStyle(fontSize: 12)),
+              ),
+            ]),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  static String _describe(int hours) {
+    if (hours <= 0) return 'never';
+    if (hours % (24 * 30) == 0) {
+      final months = hours ~/ (24 * 30);
+      return months == 1 ? '1 month' : '$months months';
+    }
+    if (hours % (24 * 7) == 0) {
+      final weeks = hours ~/ (24 * 7);
+      return weeks == 1 ? '1 week' : '$weeks weeks';
+    }
+    if (hours % 24 == 0) {
+      final days = hours ~/ 24;
+      return days == 1 ? '1 day' : '$days days';
+    }
+    return hours == 1 ? '1 hour' : '$hours hours';
+  }
+
+  Future<void> _askCustomRetention() async {
+    final controller = TextEditingController(text: _retentionHours > 0 ? '$_retentionHours' : '');
+    final hours = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Custom retention', style: TextStyle(fontSize: 16)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Hours', hintText: '72', isDense: true),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, int.tryParse(controller.text.trim())),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (hours == null || hours < 0) return;
+    await _saveSettings({'retentionHours': hours});
+  }
+
+  Future<void> _sweepNow() async {
+    try {
+      final result = await ApiClient.postJson('admin/traffic/sweep', json: const {});
+      final removed = (result['removed'] as num?)?.toInt() ?? 0;
+      _toast(removed == 0 ? 'Nothing was old enough to remove.' : 'Removed $removed exchanges.');
+    } catch (e) {
+      _toast('$e');
+    }
+  }
 
   // ------------------------------------------------------------------------------------- access rules
 

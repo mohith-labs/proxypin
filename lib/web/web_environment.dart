@@ -33,6 +33,9 @@ class WebEnvironment {
   /// Whether this account administers the console (PROXYPIN_ADMIN_EMAIL on the server).
   static bool isAdmin = false;
 
+  /// The user's optional common path prefix: every route they create is placed under it.
+  static String get pathPrefix => currentUser?['pathPrefix']?.toString() ?? '';
+
   static void apply(Map<String, dynamic> info) {
     dataDir = info['dataDir'] ?? dataDir;
     port = info['port'] ?? port;

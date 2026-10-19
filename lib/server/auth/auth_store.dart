@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:proxypin/network/components/reverse_proxy/reverse_proxy_rule.dart';
 import 'package:proxypin/network/util/logger.dart';
 import 'package:proxypin/server/server_environment.dart';
 
@@ -33,6 +34,10 @@ class AppUser {
   final DateTime createdAt;
   DateTime? lastLoginAt;
 
+  /// Optional prefix prepended to every path this user creates (`/user1` + `/path` -> `/user1/path`).
+  /// Empty means their paths are used as typed. Normalized like a rule path; `/` is stored as empty.
+  String pathPrefix;
+
   AppUser({
     required this.id,
     required this.email,
@@ -41,7 +46,23 @@ class AppUser {
     this.status = UserStatus.pending,
     DateTime? createdAt,
     this.lastLoginAt,
-  }) : createdAt = createdAt ?? DateTime.now();
+    String pathPrefix = '',
+  })  : createdAt = createdAt ?? DateTime.now(),
+        pathPrefix = normalizePrefix(pathPrefix);
+
+  /// `"user1"` -> `"/user1"`, `""`/`"/"` -> `""` (no prefix).
+  static String normalizePrefix(String value) {
+    final normalized = ReverseProxyRule.normalizePath(value);
+    return normalized == '/' ? '' : normalized;
+  }
+
+  /// The full path a rule gets when this user asks for [path].
+  String applyPrefix(String path) {
+    final normalized = ReverseProxyRule.normalizePath(path);
+    if (pathPrefix.isEmpty) return normalized;
+    if (normalized == '/') return pathPrefix;
+    return '$pathPrefix$normalized';
+  }
 
   /// The admin is defined by PROXYPIN_ADMIN_EMAIL, never by stored state, so it cannot be revoked from the UI.
   bool get isAdmin => ServerEnvironment.isAdminEmail(email);
@@ -62,6 +83,7 @@ class AppUser {
         'status': status.name,
         'createdAt': createdAt.millisecondsSinceEpoch,
         if (lastLoginAt != null) 'lastLoginAt': lastLoginAt!.millisecondsSinceEpoch,
+        if (pathPrefix.isNotEmpty) 'pathPrefix': pathPrefix,
       };
 
   static AppUser fromJson(Map<String, dynamic> json) => AppUser(
@@ -73,6 +95,7 @@ class AppUser {
         createdAt: DateTime.fromMillisecondsSinceEpoch(json['createdAt'] as int? ?? 0),
         lastLoginAt:
             json['lastLoginAt'] == null ? null : DateTime.fromMillisecondsSinceEpoch(json['lastLoginAt'] as int),
+        pathPrefix: json['pathPrefix']?.toString() ?? '',
       );
 
   /// What the UI is allowed to see (same shape for the session and the admin list).
@@ -83,6 +106,7 @@ class AppUser {
         'picture': picture,
         'status': status.name,
         'isAdmin': isAdmin,
+        'pathPrefix': pathPrefix,
         'createdAt': createdAt.millisecondsSinceEpoch,
         'lastLoginAt': lastLoginAt?.millisecondsSinceEpoch,
       };
@@ -95,19 +119,31 @@ class AuthSettings {
   DomainMode domainMode;
   List<String> domains;
 
-  AuthSettings({this.allowSignup = true, this.domainMode = DomainMode.off, List<String>? domains})
-      : domains = domains ?? [];
+  /// How long captured traffic is kept, in hours; 0 disables automatic clearing.
+  /// The sweep deletes traffic *older* than this, so it is a rolling retention window.
+  int retentionHours;
+
+  AuthSettings({
+    this.allowSignup = true,
+    this.domainMode = DomainMode.off,
+    List<String>? domains,
+    this.retentionHours = 0,
+  }) : domains = domains ?? [];
+
+  Duration? get retention => retentionHours > 0 ? Duration(hours: retentionHours) : null;
 
   Map<String, dynamic> toJson() => {
         'allowSignup': allowSignup,
         'domainMode': domainMode.name,
         'domains': domains,
+        'retentionHours': retentionHours,
       };
 
   static AuthSettings fromJson(Map<String, dynamic> json) => AuthSettings(
         allowSignup: json['allowSignup'] != false,
         domainMode: domainModeFrom(json['domainMode']?.toString()),
         domains: ((json['domains'] as List?) ?? const []).map((e) => normalizeDomain(e.toString())).where((e) => e.isNotEmpty).toList(),
+        retentionHours: (json['retentionHours'] as num?)?.toInt() ?? 0,
       );
 
   /// Accepts `@tricog.com`, `tricog.com` or `TRICOG.COM` and stores one canonical form.
@@ -213,6 +249,11 @@ class AuthStore {
 
   Future<void> updateSettings(AuthSettings updated) async {
     settings = updated;
+    await save();
+  }
+
+  Future<void> setPathPrefix(AppUser user, String prefix) async {
+    user.pathPrefix = AppUser.normalizePrefix(prefix);
     await save();
   }
 

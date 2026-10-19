@@ -16,6 +16,7 @@ import 'dart:io';
 /// | `PROXYPIN_PUBLIC_URL` | derived from the request | external base URL, used to build the OAuth callback |
 /// | `PROXYPIN_BREAKPOINT_TIMEOUT` | 600 | seconds a breakpoint may stay paused |
 /// | `PROXYPIN_HISTORY_LIMIT` | 2000 | captured requests kept in memory for the UI |
+/// | `PROXYPIN_TEST_LOGIN` | unset | `1` opens `api/test/login` (sessions without Google) for end-to-end tests; loopback only |
 class ServerEnvironment {
   ServerEnvironment._();
 
@@ -100,8 +101,26 @@ class ServerEnvironment {
   static String userDataDir(String storageKey) =>
       '$dataDir${Platform.pathSeparator}users${Platform.pathSeparator}$storageKey';
 
+  /// A config file shared by everybody (the proxy engine's own state, e.g. `reverse_proxy.json`).
+  static String sharedConfigPath(String fileName) => '$dataDir${Platform.pathSeparator}$fileName';
+
   static Duration get breakpointTimeout =>
       Duration(seconds: int.tryParse(_value('PROXYPIN_BREAKPOINT_TIMEOUT') ?? '') ?? 600);
 
   static int get historyLimit => int.tryParse(_value('PROXYPIN_HISTORY_LIMIT') ?? '') ?? 2000;
+
+  /// Whether the listen address only accepts connections from this machine.
+  static bool get boundToLoopback {
+    final address = bindAddress;
+    return address == '127.0.0.1' || address == '::1' || address == 'localhost';
+  }
+
+  /// Opens `api/test/login`, which mints a session without Google, for end-to-end tests.
+  ///
+  /// It is an authentication bypass, so it is off unless the variable is explicitly set to `1`/`true`, and the
+  /// server refuses to start with it on unless it is also bound to loopback.
+  static bool get testLoginEnabled {
+    final value = _value('PROXYPIN_TEST_LOGIN')?.toLowerCase();
+    return value == '1' || value == 'true';
+  }
 }

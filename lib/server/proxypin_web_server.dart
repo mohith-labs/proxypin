@@ -96,6 +96,13 @@ class ProxyPinWebServer {
     await frontDoor.bind(ServerEnvironment.port, address: ServerEnvironment.bindAddress);
     _frontDoor = frontDoor;
 
+    applyRetention();
+
+    if (ServerEnvironment.testLoginEnabled) {
+      logger.w('PROXYPIN_TEST_LOGIN is on: /api/test/login mints sessions without Google. '
+          '${ServerEnvironment.boundToLoopback ? "Loopback only." : "REFUSED: the server is not bound to loopback."}');
+    }
+
     logger.i('ProxyPin web listening on ${ServerEnvironment.bindAddress}:${ServerEnvironment.port} '
         '(UI ${ServerEnvironment.uiPrefix}/, data ${ServerEnvironment.dataDir})');
   }
@@ -174,7 +181,32 @@ class ProxyPinWebServer {
     hub.broadcast({'type': 'capture', 'capturing': enabled});
   }
 
+  Timer? _retentionTimer;
+
+  /// Starts (or restarts) the admin's traffic retention sweep.
+  ///
+  /// The window is a rolling one: each sweep drops exchanges older than the configured period, so "weekly"
+  /// keeps the last seven days rather than emptying everything every seventh day. Sweeping hourly is frequent
+  /// enough for day-or-longer windows and costs nothing when there is nothing to drop.
+  void applyRetention() {
+    _retentionTimer?.cancel();
+    _retentionTimer = null;
+
+    final retention = authStore.settings.retention;
+    if (retention == null) return;
+
+    void sweep() {
+      final removed = hub.clearOlderThan(retention);
+      if (removed > 0) logger.i('traffic retention: dropped $removed exchanges older than ${retention.inHours}h');
+    }
+
+    sweep(); // apply the new window at once
+    final period = retention < const Duration(hours: 2) ? const Duration(minutes: 5) : const Duration(hours: 1);
+    _retentionTimer = Timer.periodic(period, (_) => sweep());
+  }
+
   Future<void> stop() async {
+    _retentionTimer?.cancel();
     await _frontDoor?.stop();
     await _internalProxy?.stop();
   }

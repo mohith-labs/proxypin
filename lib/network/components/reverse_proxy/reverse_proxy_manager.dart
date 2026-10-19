@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:meta/meta.dart';
+
 import 'package:proxypin/network/util/logger.dart';
 import 'package:proxypin/storage/path.dart';
 import 'package:proxypin/utils/io.dart';
@@ -28,6 +30,10 @@ class ReverseProxyManager {
   static ReverseProxyManager? get instanceOrNull => _instance;
 
   ReverseProxyManager._();
+
+  /// A detached manager with a fixed rule set, for tests.
+  @visibleForTesting
+  factory ReverseProxyManager.forTest(List<ReverseProxyRule> rules) => ReverseProxyManager._()..rules.addAll(rules);
 
   bool enabled = true;
   final List<ReverseProxyRule> rules = [];
@@ -75,5 +81,37 @@ class ReverseProxyManager {
       if (best == null || rule.path.length > best.path.length) best = rule;
     }
     return best;
+  }
+
+  /// Whether [userId] may see and edit [rule]. Admins see everything; everyone else sees only their own.
+  /// Rules written before ownership existed have no owner and belong to the admin.
+  static bool canAccess(ReverseProxyRule rule, {required String userId, required bool isAdmin}) {
+    if (isAdmin) return true;
+    return rule.ownerId.isNotEmpty && rule.ownerId == userId;
+  }
+
+  /// The rules [userId] may see.
+  List<ReverseProxyRule> visibleTo({required String userId, required bool isAdmin}) =>
+      rules.where((rule) => canAccess(rule, userId: userId, isAdmin: isAdmin)).toList();
+
+  /// Returns the rule that would collide with [path], or null when the path is free.
+  ///
+  /// Two rules collide when one would swallow the other's traffic: identical paths, or one being a path-segment
+  /// prefix of the other (`/a` vs `/a/b`), since the longest-prefix [match] would make the inner one unreachable
+  /// for part of its range. [ignore] is the rule being edited, so renaming a rule to its own path is allowed.
+  ReverseProxyRule? findConflict(String path, {ReverseProxyRule? ignore}) {
+    final candidate = ReverseProxyRule.normalizePath(path);
+    for (final rule in rules) {
+      if (identical(rule, ignore)) continue;
+      if (pathsOverlap(candidate, rule.path)) return rule;
+    }
+    return null;
+  }
+
+  /// Whether two path prefixes would capture overlapping traffic, making one unreachable for part of its range.
+  static bool pathsOverlap(String a, String b) {
+    if (a == b) return true;
+    if (a == '/' || b == '/') return true; // `/` catches everything
+    return a.startsWith('$b/') || b.startsWith('$a/');
   }
 }
